@@ -1,0 +1,28 @@
+# GoGreen-AI Flutter Project
+
+# Dart & Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Android
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/local.properties
+android/key.properties
+
+# Generated files
+*.g.dart
+
+# Secrets / environment
+.env
+*.env.local

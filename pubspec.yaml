@@ -1,0 +1,44 @@
+name: gogreenai
+description: "GoGreen-AI: Smart plant care, nursery discovery, and AI plant assistant powered by Gemini."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+  flutter: ">=3.16.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Google Gemini AI SDK
+  google_generative_ai: ^0.4.6
+
+  # Networking & API integration
+  http: ^1.2.2
+
+  # State management
+  provider: ^6.1.2
+
+  # Secure Token Storage (Keystore / EncryptedSharedPreferences)
+  flutter_secure_storage: ^9.2.2
+
+  # Device features & Media
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+
+  # Utilities & UI
+  intl: ^0.19.0
+  google_fonts: ^6.2.1
+  geolocator: ^14.0.2
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.2
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
