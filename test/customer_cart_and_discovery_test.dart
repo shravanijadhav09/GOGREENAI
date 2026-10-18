@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gogreenai/features/nurseries/models/nursery.dart';
 import 'package:gogreenai/features/plants/models/plant.dart';
 import 'package:gogreenai/providers/cart_provider.dart';
-import 'package:gogreenai/providers/app_provider.dart';
 
 void main() {
   group('CartProvider Tests', () {

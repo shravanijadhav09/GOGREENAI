@@ -11,6 +11,12 @@ import '../plants/plant_card.dart';
 import '../plants/plant_detail_screen.dart';
 import '../nurseries/nursery_detail_screen.dart';
 import '../nurseries/models/nursery.dart';
+import '../../providers/reminder_provider.dart';
+import '../../providers/language_provider.dart';
+import '../../providers/wishlist_provider.dart';
+import '../plants/wishlist_screen.dart';
+import '../reminders/plant_care_reminders_screen.dart';
+import '../ai/ai_assistant_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,10 +31,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final appProv = context.read<AppProvider>();
-      if (appProv.plantsState == LoadState.idle) appProv.fetchPlants();
-      if (appProv.nurseriesState == LoadState.idle) appProv.fetchNurseries();
+      if (appProv.plantsState == LoadState.idle) await appProv.fetchPlants();
+      if (appProv.nurseriesState == LoadState.idle) await appProv.fetchNurseries();
+      if (mounted) {
+        context.read<WishlistProvider>().syncWithPlants(appProv.plants);
+      }
     });
   }
 
@@ -100,14 +109,105 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const Spacer(),
-                      // ── My Orders Action ──────────────────────────
-                      IconButton(
-                        tooltip: 'My Orders',
-                        icon: const Icon(Icons.receipt_long_outlined, color: AppColors.textPrimary),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const CustomerOrdersScreen()),
+                      // ── Language Selection Action ─────────────────
+                      Consumer<LanguageProvider>(
+                        builder: (context, langProv, _) => IconButton(
+                          tooltip: 'Language / भाषा (${langProv.currentLocaleName})',
+                          icon: const Icon(Icons.translate_rounded, color: AppColors.textPrimary),
+                          onPressed: () => _showLanguageDialog(context, langProv),
+                        ),
+                      ),
+                      // ── Wishlist Action with Badge ────────────────
+                      Consumer<WishlistProvider>(
+                        builder: (context, wishlist, _) {
+                          final count = wishlist.count;
+                          return Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              IconButton(
+                                tooltip: 'My Wishlist',
+                                icon: const Icon(Icons.favorite_border_rounded, color: AppColors.textPrimary),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const WishlistScreen()),
+                                  );
+                                },
+                              ),
+                              if (count > 0)
+                                Positioned(
+                                  top: 6,
+                                  right: 6,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.accentCoral,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '$count',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                      // ── Care Reminders Action ────────────────────
+                      Consumer<ReminderProvider>(
+                        builder: (context, reminderProv, _) {
+                          final due = reminderProv.dueCount;
+                          return Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              IconButton(
+                                tooltip: 'Care Reminders',
+                                icon: const Icon(Icons.alarm_outlined, color: AppColors.textPrimary),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const PlantCareRemindersScreen()),
+                                  );
+                                },
+                              ),
+                              if (due > 0)
+                                Positioned(
+                                  top: 6,
+                                  right: 6,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.error,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '$due',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           );
                         },
                       ),
@@ -182,6 +282,13 @@ class _HomeScreenState extends State<HomeScreen> {
                               context,
                               MaterialPageRoute(builder: (_) => const CustomerOrdersScreen()),
                             );
+                          } else if (val == 'wishlist') {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const WishlistScreen()),
+                            );
+                          } else if (val == 'language') {
+                            _showLanguageDialog(context, context.read<LanguageProvider>());
                           } else if (val == 'logout') {
                             auth.logout();
                           }
@@ -217,6 +324,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Icon(Icons.receipt_long, size: 18, color: AppColors.textPrimary),
                                 SizedBox(width: 10),
                                 Text('My Orders', style: TextStyle(fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem<String>(
+                            value: 'wishlist',
+                            child: Row(
+                              children: [
+                                Icon(Icons.favorite_outline, size: 18, color: AppColors.accentCoral),
+                                SizedBox(width: 10),
+                                Text('Wishlist', style: TextStyle(fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem<String>(
+                            value: 'language',
+                            child: Row(
+                              children: [
+                                Icon(Icons.translate, size: 18, color: AppColors.primaryBlue),
+                                SizedBox(width: 10),
+                                Text('Change Language / भाषा', style: TextStyle(fontWeight: FontWeight.w500)),
                               ],
                             ),
                           ),
@@ -538,6 +665,59 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  void _showLanguageDialog(BuildContext context, LanguageProvider langProv) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.translate, color: AppColors.botanicalGreen),
+            SizedBox(width: 10),
+            Text('Select Language / भाषा निवडा', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final entry in LanguageProvider.supportedLanguages.entries)
+              RadioListTile<String>(
+                value: entry.key,
+                groupValue: langProv.localeCode,
+                activeColor: AppColors.botanicalGreen,
+                title: Text(
+                  entry.value,
+                  style: TextStyle(
+                    fontWeight: langProv.localeCode == entry.key ? FontWeight.bold : FontWeight.normal,
+                    color: langProv.localeCode == entry.key ? AppColors.botanicalGreenDark : AppColors.textPrimary,
+                  ),
+                ),
+                onChanged: (val) {
+                  if (val != null) {
+                    langProv.setLocale(val);
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Language updated to ${entry.value}'),
+                        backgroundColor: AppColors.botanicalGreen,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Filter Chip Widget ──────────────────────────────────────────────
@@ -776,59 +956,68 @@ class _NearbyNurseriesHorizontalList extends StatelessWidget {
 class _AiBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.botanicalGreenDark, AppColors.botanicalGreen],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AiAssistantScreen()),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.botanicalGreenDark, AppColors.botanicalGreen],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.botanicalGreenDark.withValues(alpha: 0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.botanicalGreenDark.withValues(alpha: 0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'AI Plant Doctor & Guide 🌿',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'AI Plant Doctor & Guide 🌿',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Get instant care tips, disease diagnosis, and light recommendations.',
-                  style: TextStyle(
-                    color: Color(0xFFD1FAE5),
-                    fontSize: 12,
-                    height: 1.3,
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Get instant care tips, disease diagnosis, and smart recommendations.',
+                    style: TextStyle(
+                      color: Color(0xFFD1FAE5),
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
             ),
-            child: const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

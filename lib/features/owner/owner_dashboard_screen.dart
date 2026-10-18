@@ -10,6 +10,7 @@ import 'owner_inventory_screen.dart';
 import 'our_plant_gallery_screen.dart';
 import 'owner_orders_screen.dart';
 import 'owner_payment_settings_screen.dart';
+import 'owner_reviews_screen.dart';
 
 class OwnerDashboardScreen extends StatefulWidget {
   const OwnerDashboardScreen({super.key});
@@ -365,9 +366,23 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   icon: Icons.star_outline_rounded,
                   iconColor: const Color(0xFFEC4899),
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Opening Customer Reviews...')),
-                    );
+                    if (nursery != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => OwnerReviewsScreen(
+                            nurseryId: nursery.id,
+                            nurseryName: nursery.name,
+                          ),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please register your nursery profile first to view customer feedback.'),
+                        ),
+                      );
+                    }
                   },
                 ),
                 const SizedBox(height: 24),

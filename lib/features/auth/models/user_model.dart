@@ -97,6 +97,30 @@ class UserModel {
       'createdAt': createdAt,
     };
   }
+
+  UserModel copyWith({
+    String? id,
+    String? email,
+    UserRole? role,
+    String? firstName,
+    String? lastName,
+    String? phone,
+    String? avatarUrl,
+    bool? isActive,
+    String? createdAt,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      role: role ?? this.role,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      phone: phone ?? this.phone,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }
 
 class AuthTokens {

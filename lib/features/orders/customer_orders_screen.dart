@@ -694,6 +694,137 @@ class _CustomerOrderDetailView extends StatelessWidget {
                 ],
               ),
             ),
+
+            if (order.status == OrderStatusEnum.completed) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => _showFeedbackDialog(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.star_rounded),
+                label: const Text(
+                  'Rate & Review Nursery for this Order',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFeedbackDialog(BuildContext context) {
+    int rating = 5;
+    final commentCtrl = TextEditingController();
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Rate this Order',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Select rating for this order:',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (index) {
+                    final starIndex = index + 1;
+                    return IconButton(
+                      onPressed: () {
+                        setDialogState(() => rating = starIndex);
+                      },
+                      icon: Icon(
+                        starIndex <= rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                        color: Colors.amber,
+                        size: 36,
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: commentCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Written Review (Optional)',
+                    hintText: 'How was the plant quality and service?',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.botanicalGreen,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        await ApiClient().post(ApiConstants.feedbacksEndpoint, {
+                          'nurseryId': order.nurseryId,
+                          'orderId': order.id,
+                          'rating': rating,
+                          if (commentCtrl.text.trim().isNotEmpty)
+                            'comment': commentCtrl.text.trim(),
+                        });
+
+                        if (context.mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Thank you! Your feedback for this order has been submitted.'),
+                              backgroundColor: AppColors.botanicalGreen,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setDialogState(() => isSubmitting = false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('$e'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Submit Review'),
+            ),
           ],
         ),
       ),

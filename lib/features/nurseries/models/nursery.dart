@@ -6,12 +6,15 @@ class Nursery {
   final String? city;
   final String? state;
   final String? phone;
+  final String? email;
   final String? imageUrl;
   final String? logoUrl;
   final bool isVerified;
   final bool isActive;
   final String? ownerId;
   final int? plantCount;
+  final double averageRating;
+  final int totalRatings;
 
   // Payment settings
   final String? upiId;
@@ -33,12 +36,15 @@ class Nursery {
     this.city,
     this.state,
     this.phone,
+    this.email,
     this.imageUrl,
     this.logoUrl,
     this.isVerified = false,
     this.isActive = true,
     this.ownerId,
     this.plantCount,
+    this.averageRating = 0.0,
+    this.totalRatings = 0,
     this.upiId,
     this.upiQrUrl,
     this.upiQrPublicId,
@@ -51,6 +57,13 @@ class Nursery {
 
   factory Nursery.fromJson(Map<String, dynamic> json) {
     final logo = (json['logoUrl'] ?? json['imageUrl']) as String?;
+    final avgRating = json['averageRating'] != null
+        ? double.tryParse(json['averageRating'].toString()) ?? 0.0
+        : 0.0;
+    final totalR = json['totalRatings'] != null
+        ? int.tryParse(json['totalRatings'].toString()) ?? 0
+        : 0;
+
     return Nursery(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -59,12 +72,15 @@ class Nursery {
       city: json['city'] as String?,
       state: json['state'] as String?,
       phone: json['phone'] as String?,
+      email: (json['email'] ?? json['owner']?['email']) as String?,
       imageUrl: logo,
       logoUrl: logo,
       isVerified: (json['isVerified'] as bool?) ?? false,
       isActive: (json['isActive'] as bool?) ?? true,
       ownerId: json['ownerId'] as String?,
       plantCount: json['_count']?['plants'] as int?,
+      averageRating: avgRating,
+      totalRatings: totalR,
       upiId: json['upiId'] as String?,
       upiQrUrl: json['upiQrUrl'] as String?,
       upiQrPublicId: json['upiQrPublicId'] as String?,
@@ -84,12 +100,15 @@ class Nursery {
     String? city,
     String? state,
     String? phone,
+    String? email,
     String? imageUrl,
     String? logoUrl,
     bool? isVerified,
     bool? isActive,
     String? ownerId,
     int? plantCount,
+    double? averageRating,
+    int? totalRatings,
     String? upiId,
     String? upiQrUrl,
     String? upiQrPublicId,
@@ -107,12 +126,15 @@ class Nursery {
       city: city ?? this.city,
       state: state ?? this.state,
       phone: phone ?? this.phone,
+      email: email ?? this.email,
       imageUrl: imageUrl ?? this.imageUrl,
       logoUrl: logoUrl ?? this.logoUrl,
       isVerified: isVerified ?? this.isVerified,
       isActive: isActive ?? this.isActive,
       ownerId: ownerId ?? this.ownerId,
       plantCount: plantCount ?? this.plantCount,
+      averageRating: averageRating ?? this.averageRating,
+      totalRatings: totalRatings ?? this.totalRatings,
       upiId: upiId ?? this.upiId,
       upiQrUrl: upiQrUrl ?? this.upiQrUrl,
       upiQrPublicId: upiQrPublicId ?? this.upiQrPublicId,

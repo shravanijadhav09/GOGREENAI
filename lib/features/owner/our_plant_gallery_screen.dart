@@ -16,6 +16,7 @@ class OurPlantGalleryScreen extends StatefulWidget {
 
 class _OurPlantGalleryScreenState extends State<OurPlantGalleryScreen> {
   final ImagePicker _picker = ImagePicker();
+  String? _selectedFilter;
 
   @override
   void initState() {
@@ -171,8 +172,8 @@ class _OurPlantGalleryScreenState extends State<OurPlantGalleryScreen> {
 
   Future<Map<String, String?>?> _showPhotoDetailsDialog() async {
     final captionCtrl = TextEditingController();
-    String? selectedCategory;
-    final categories = ['Greenhouse', 'Outdoor Garden', 'Display Section', 'Rare Collection', 'Work Area', 'General'];
+    String? selectedCategory = GalleryCategories.indoor;
+    final categories = GalleryCategories.all;
 
     return showDialog<Map<String, String?>>(
       context: context,
@@ -194,7 +195,7 @@ class _OurPlantGalleryScreenState extends State<OurPlantGalleryScreen> {
                   maxLines: 2,
                 ),
                 const SizedBox(height: 16),
-                const Text('Category / Section:', style: TextStyle(fontWeight: FontWeight.w600)),
+                const Text('Category:', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -236,18 +237,19 @@ class _OurPlantGalleryScreenState extends State<OurPlantGalleryScreen> {
   }
 
   Future<String?> _showCategorySelectionDialog() async {
-    String? selectedCategory;
-    final categories = ['Greenhouse', 'Outdoor Garden', 'Display Section', 'Rare Collection', 'General'];
+    String? selectedCategory = GalleryCategories.indoor;
+    final categories = GalleryCategories.all;
 
     return showDialog<String?>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Select Section / Category'),
+          title: const Text('Select Category'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Tag these photos with a nursery section (optional):'),
+              const Text('Tag these photos with a category:'),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 8,
@@ -394,6 +396,45 @@ class _OurPlantGalleryScreenState extends State<OurPlantGalleryScreen> {
               ),
             ),
 
+            // Category Filter Chips
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: const Text('All'),
+                      selected: _selectedFilter == null,
+                      onSelected: (_) {
+                        setState(() => _selectedFilter = null);
+                      },
+                      selectedColor: AppColors.botanicalGreenLight,
+                      checkmarkColor: AppColors.botanicalGreen,
+                    ),
+                  ),
+                  ...GalleryCategories.all.map((cat) {
+                    final isSel = _selectedFilter == cat;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(cat),
+                        selected: isSel,
+                        onSelected: (val) {
+                          setState(() {
+                            _selectedFilter = val ? cat : null;
+                          });
+                        },
+                        selectedColor: AppColors.botanicalGreenLight,
+                        checkmarkColor: AppColors.botanicalGreen,
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+
             // Gallery content
             Expanded(
               child: _buildGalleryContent(owner),
@@ -431,7 +472,11 @@ class _OurPlantGalleryScreenState extends State<OurPlantGalleryScreen> {
       );
     }
 
-    if (owner.gallery.isEmpty) {
+    final filteredGallery = _selectedFilter == null
+        ? owner.gallery
+        : owner.gallery.where((img) => img.category == _selectedFilter).toList();
+
+    if (filteredGallery.isEmpty) {
       return Center(
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -446,15 +491,17 @@ class _OurPlantGalleryScreenState extends State<OurPlantGalleryScreen> {
                   child: const Icon(Icons.add_photo_alternate_outlined, size: 44, color: AppColors.botanicalGreen),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'No Gallery Photos Yet',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Text(
+                  _selectedFilter == null ? 'No Gallery Photos Yet' : 'No photos in $_selectedFilter',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Upload photos of your nursery atmosphere, seasonal displays, and greenhouses to impress visiting customers.',
+                Text(
+                  _selectedFilter == null
+                      ? 'Upload photos of your nursery atmosphere, seasonal displays, and greenhouses to impress visiting customers.'
+                      : 'Upload photos tagged under $_selectedFilter using the Add Photos button below.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
@@ -483,9 +530,9 @@ class _OurPlantGalleryScreenState extends State<OurPlantGalleryScreen> {
         mainAxisSpacing: 12,
         childAspectRatio: 0.85,
       ),
-      itemCount: owner.gallery.length,
+      itemCount: filteredGallery.length,
       itemBuilder: (context, index) {
-        final image = owner.gallery[index];
+        final image = filteredGallery[index];
         return _buildGalleryGridCard(image);
       },
     );
@@ -607,7 +654,7 @@ class _GalleryFullscreenViewerState extends State<_GalleryFullscreenViewer> {
   Future<void> _editCaption() async {
     final ctrl = TextEditingController(text: _currentImage.caption ?? '');
     String? selectedCategory = _currentImage.category;
-    final categories = ['Greenhouse', 'Outdoor Garden', 'Display Section', 'Rare Collection', 'Work Area', 'General'];
+    final categories = GalleryCategories.all;
 
     final result = await showDialog<Map<String, String?>>(
       context: context,

@@ -1,3 +1,19 @@
+class GalleryCategories {
+  static const String indoor = 'Indoor Plants';
+  static const String outdoor = 'Outdoor Plants';
+  static const String medicinal = 'Medicinal / Aushadhi Plants';
+  static const String general = 'General';
+
+  static const String indoorPlants = indoor;
+
+  static const List<String> all = [
+    indoor,
+    outdoor,
+    medicinal,
+    general,
+  ];
+}
+
 class GalleryImage {
   final String id;
   final String url;

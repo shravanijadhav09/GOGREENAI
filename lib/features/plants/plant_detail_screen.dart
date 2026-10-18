@@ -7,6 +7,9 @@ import '../../providers/cart_provider.dart';
 import '../cart/cart_screen.dart';
 import '../nurseries/nursery_detail_screen.dart';
 import '../orders/checkout_screen.dart';
+import '../reminders/plant_care_reminders_screen.dart';
+import '../../providers/wishlist_provider.dart';
+import 'wishlist_screen.dart';
 import 'models/plant.dart';
 
 class PlantDetailScreen extends StatefulWidget {
@@ -22,7 +25,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   final GeminiService _gemini = GeminiService();
   String? _aiAdvice;
   bool _loadingAdvice = false;
-  bool _isInGarden = false;
   int _quantity = 1;
 
   void _getAiCareAdvice() async {
@@ -49,19 +51,35 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     }
   }
 
-  void _toggleGarden() {
-    setState(() => _isInGarden = !_isInGarden);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isInGarden
-              ? '🌿 ${widget.plant.name} added to your garden tracker!'
-              : '${widget.plant.name} removed from your garden.',
+  Future<void> _toggleWishlist() async {
+    final wishlist = context.read<WishlistProvider>();
+    final added = await wishlist.toggleWishlist(widget.plant);
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            added
+                ? '❤️ Added ${widget.plant.name} to your Wishlist!'
+                : 'Removed ${widget.plant.name} from Wishlist.',
+          ),
+          backgroundColor: AppColors.botanicalGreen,
+          duration: const Duration(seconds: 2),
+          action: added
+              ? SnackBarAction(
+                  label: 'View Wishlist',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WishlistScreen()),
+                    );
+                  },
+                )
+              : null,
         ),
-        backgroundColor: AppColors.botanicalGreen,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      );
+    }
   }
 
   void _addToCart() {
@@ -179,13 +197,18 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                     ),
             ),
             actions: [
-              IconButton(
-                icon: Icon(
-                  _isInGarden ? Icons.favorite : Icons.favorite_border,
-                  color: _isInGarden ? Colors.redAccent : Colors.white,
-                ),
-                onPressed: _toggleGarden,
-                tooltip: 'Save to Garden',
+              Consumer<WishlistProvider>(
+                builder: (ctx, wishlist, _) {
+                  final isFav = wishlist.isWishlisted(plant.id);
+                  return IconButton(
+                    icon: Icon(
+                      isFav ? Icons.favorite : Icons.favorite_border,
+                      color: isFav ? Colors.redAccent : Colors.white,
+                    ),
+                    onPressed: _toggleWishlist,
+                    tooltip: 'Wishlist',
+                  );
+                },
               ),
               Stack(
                 alignment: Alignment.center,
@@ -304,6 +327,70 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                         ],
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ── Set Care Reminder Button ──────────────────────
+                  InkWell(
+                    onTap: () {
+                      int defaultFreq = 3;
+                      final w = widget.plant.watering?.toUpperCase() ?? '';
+                      if (w.contains('HIGH') || w.contains('DAILY')) {
+                        defaultFreq = 1;
+                      } else if (w.contains('LOW') || w.contains('WEEKLY')) {
+                        defaultFreq = 7;
+                      }
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PlantCareRemindersScreen(
+                            initialPlantName: widget.plant.name,
+                            initialPlantId: widget.plant.id,
+                            initialImageUrl: widget.plant.imageUrl,
+                            initialFrequencyDays: defaultFreq,
+                          ),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.botanicalGreenLight.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.botanicalGreen.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.alarm_add_rounded, color: AppColors.botanicalGreen, size: 20),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Set Care & Watering Reminder',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: AppColors.botanicalGreenDark,
+                                  ),
+                                ),
+                                Text(
+                                  'Get scheduled alerts for watering & fertilizing this plant',
+                                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right, size: 18, color: AppColors.botanicalGreen),
+                        ],
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 20),
@@ -687,15 +774,18 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   border: Border.all(color: AppColors.border),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: IconButton(
-                  icon: Icon(
-                    _isInGarden ? Icons.favorite : Icons.favorite_border,
-                    color: _isInGarden
-                        ? Colors.redAccent
-                        : AppColors.textSecondary,
-                  ),
-                  onPressed: _toggleGarden,
-                  tooltip: 'Save to Garden',
+                child: Consumer<WishlistProvider>(
+                  builder: (ctx, wishlist, _) {
+                    final isFav = wishlist.isWishlisted(plant.id);
+                    return IconButton(
+                      icon: Icon(
+                        isFav ? Icons.favorite : Icons.favorite_border,
+                        color: isFav ? Colors.redAccent : AppColors.textSecondary,
+                      ),
+                      onPressed: _toggleWishlist,
+                      tooltip: 'Save to Wishlist',
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 10),

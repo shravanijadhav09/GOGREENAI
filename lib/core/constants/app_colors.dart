@@ -13,6 +13,10 @@ class AppColors {
   static const Color botanicalGreenDark = Color(0xFF047857);
   static const Color botanicalGreenLight = Color(0xFFD1FAE5);
 
+  // Vibrant Accents
+  static const Color accentCoral = Color(0xFFF43F5E);
+  static const Color accentGold = Color(0xFFF59E0B);
+
   // Surfaces & Backgrounds
   static const Color background = Color(0xFFF8FAFC);
   static const Color surface = Color(0xFFFFFFFF);

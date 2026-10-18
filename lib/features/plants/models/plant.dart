@@ -130,7 +130,41 @@ class Plant {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      if (description != null) 'description': description,
+      if (imageUrl != null) 'imageUrl': imageUrl,
+      if (category != null) 'category': category,
+      'price': price,
+      'stock': stock,
+      'isActive': isActive,
+      if (sunlight != null) 'sunlight': sunlight,
+      if (watering != null) 'watering': watering,
+      if (careDifficulty != null) 'careDifficulty': careDifficulty,
+      if (isIndoor != null) 'isIndoor': isIndoor,
+      if (isOutdoor != null) 'isOutdoor': isOutdoor,
+      if (isPetSafe != null) 'isPetSafe': isPetSafe,
+      if (sizeCm != null) 'sizeCm': sizeCm,
+      'climate': climate,
+      'tags': tags,
+      'nurseryId': nurseryId,
+      if (nurseryName != null || nurseryCity != null || nurseryState != null || nurseryAddress != null || nurseryLogoUrl != null)
+        'nursery': {
+          'id': nurseryId,
+          if (nurseryName != null) 'name': nurseryName,
+          if (nurseryCity != null) 'city': nurseryCity,
+          if (nurseryState != null) 'state': nurseryState,
+          if (nurseryAddress != null) 'address': nurseryAddress,
+          if (nurseryLogoUrl != null) 'logoUrl': nurseryLogoUrl,
+        },
+    };
+  }
+
   bool get inStock => stock > 0;
+  bool get isOutOfStock => stock <= 0;
+  String get formattedPrice => '₹${price.toStringAsFixed(0)}';
 
   bool get isMedicinal {
     final cat = (category ?? '').toLowerCase();

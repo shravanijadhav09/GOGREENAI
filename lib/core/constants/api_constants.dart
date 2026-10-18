@@ -79,6 +79,21 @@ class ApiConstants {
   static const String customerOrdersEndpoint = '/orders/my-orders';
   static const String paymentSettingsEndpoint = '/nurseries/mine/payment-settings';
 
+  static const String razorpayCreateOrderEndpoint = '/orders/razorpay/create-order';
+  static const String razorpayVerifyPaymentEndpoint = '/orders/razorpay/verify-payment';
+
   static String orderStatusEndpoint(String orderId) => '/orders/$orderId/status';
   static String orderPaymentStatusEndpoint(String orderId) => '/orders/$orderId/payment-status';
+
+  // ── Feedback & Ratings Endpoints ────────────────────────────
+  static const String feedbacksEndpoint = '/feedbacks';
+  static const String myFeedbacksEndpoint = '/feedbacks/my-feedback';
+  static const String myNurseryFeedbacksEndpoint = '/nurseries/mine/feedbacks';
+  static String nurseryFeedbacksEndpoint(String nurseryId) => '/feedbacks/nursery/$nurseryId';
+  static String nurseryGalleryEndpoint(String nurseryId, {String? category}) {
+    if (category != null && category.isNotEmpty && category != 'All') {
+      return '/nurseries/$nurseryId/gallery?category=${Uri.encodeComponent(category)}';
+    }
+    return '/nurseries/$nurseryId/gallery';
+  }
 }

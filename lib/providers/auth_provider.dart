@@ -244,6 +244,40 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ── Update Profile ──────────────────────────────────────────────
+  Future<bool> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? phone,
+    String? avatarUrl,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        if (firstName != null) 'firstName': firstName.trim().isEmpty ? null : firstName.trim(),
+        if (lastName != null) 'lastName': lastName.trim().isEmpty ? null : lastName.trim(),
+        if (phone != null) 'phone': phone.trim().isEmpty ? null : phone.trim(),
+        if (avatarUrl != null) 'avatarUrl': avatarUrl.trim().isEmpty ? null : avatarUrl.trim(),
+      };
+
+      final res = await _api.patch(ApiConstants.meEndpoint, body);
+      if (res['success'] == true && res['user'] != null) {
+        _currentUser = UserModel.fromJson(res['user'] as Map<String, dynamic>);
+        await _storage.saveUser(_currentUser!);
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   // ── Logout ──────────────────────────────────────────────────────
   Future<void> logout() async {
     final refreshToken = await _storage.getRefreshToken();

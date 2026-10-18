@@ -6,6 +6,7 @@ import '../features/nurseries/models/nursery.dart';
 import '../features/plants/models/plant.dart';
 import '../features/owner/models/gallery_image.dart';
 import '../features/owner/models/nursery_order.dart';
+import '../features/nurseries/models/feedback_model.dart';
 
 enum OwnerLoadState { idle, loading, success, error }
 
@@ -36,6 +37,13 @@ class OwnerProvider extends ChangeNotifier {
   bool _isOrdersLoading = false;
   String? _ordersError;
   String _orderFilter = 'all'; // 'all', 'PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED'
+
+  // ── Feedback & Ratings State ─────────────────────────────────
+  List<FeedbackModel> _feedbacks = [];
+  double _averageRating = 0.0;
+  int _totalRatings = 0;
+  bool _isFeedbacksLoading = false;
+  String? _feedbacksError;
 
   OwnerLoadState _state = OwnerLoadState.idle;
   String? _errorMessage;
@@ -126,33 +134,68 @@ class OwnerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Feedback getters
+  List<FeedbackModel> get feedbacks => _feedbacks;
+  double get averageRating => _averageRating;
+  int get totalRatings => _totalRatings;
+  bool get isFeedbacksLoading => _isFeedbacksLoading;
+  String? get feedbacksError => _feedbacksError;
+
   void selectNursery(Nursery nursery) {
     _nursery = nursery;
     notifyListeners();
+    fetchInventory();
+    fetchGallery(refresh: true);
+    fetchOwnerOrders(refresh: true);
+    fetchFeedbacks();
+    fetchOwnerDashboard(nurseryId: nursery.id);
   }
 
   /// Fetches the owner's nursery profile and dashboard metrics
-  Future<void> fetchOwnerDashboard() async {
+  Future<void> fetchOwnerDashboard({String? nurseryId}) async {
     _state = OwnerLoadState.loading;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // 1. Fetch Nursery Profile
-      final mineRes = await _api.get(ApiConstants.myNurseryEndpoint);
+      final targetId = nurseryId ?? _nursery?.id;
+      final query = targetId != null ? '?nurseryId=$targetId' : '';
+      // 1. Fetch Nursery Profile(s)
+      final mineRes = await _api.get('${ApiConstants.myNurseryEndpoint}$query');
       final rawData = mineRes['data'] as Map<String, dynamic>?;
+      final rawNurseries = mineRes['nurseries'] as List<dynamic>?;
+
+      if (rawNurseries != null) {
+        _myNurseries = rawNurseries
+            .map((j) => Nursery.fromJson(j as Map<String, dynamic>))
+            .toList();
+      }
 
       if (rawData != null) {
         _nursery = Nursery.fromJson(rawData);
-        _myNurseries = [_nursery!];
+        if (_myNurseries.isEmpty) {
+          _myNurseries = [_nursery!];
+        }
+      } else if (_myNurseries.isNotEmpty) {
+        _nursery = _myNurseries.first;
       } else {
         _nursery = null;
         _myNurseries = [];
       }
 
       // 2. Fetch Dashboard Statistics
-      final dashRes = await _api.get(ApiConstants.myNurseryDashboardEndpoint);
+      final dashQuery = _nursery != null ? '?nurseryId=${_nursery!.id}' : '';
+      final dashRes = await _api.get('${ApiConstants.myNurseryDashboardEndpoint}$dashQuery');
       _dashboardStats = dashRes['data'] as Map<String, dynamic>?;
+
+      if (_dashboardStats != null) {
+        if (_dashboardStats!['averageRating'] != null) {
+          _averageRating = double.tryParse(_dashboardStats!['averageRating'].toString()) ?? 0.0;
+        }
+        if (_dashboardStats!['totalRatings'] != null) {
+          _totalRatings = int.tryParse(_dashboardStats!['totalRatings'].toString()) ?? 0;
+        }
+      }
 
       _state = OwnerLoadState.success;
       _errorMessage = null;
@@ -294,7 +337,8 @@ class OwnerProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await _api.get(ApiConstants.myPlantsEndpoint);
+      final query = _nursery != null ? '?nurseryId=${_nursery!.id}' : '';
+      final res = await _api.get('${ApiConstants.myPlantsEndpoint}$query');
       final rawList = res['data'] as List<dynamic>? ?? [];
       _inventory = rawList.map((j) => Plant.fromJson(j as Map<String, dynamic>)).toList();
       _isInventoryLoading = false;
@@ -507,7 +551,8 @@ class OwnerProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await _api.get('${ApiConstants.nurseriesEndpoint}/mine/gallery');
+      final query = _nursery != null ? '?nurseryId=${_nursery!.id}' : '';
+      final res = await _api.get('${ApiConstants.nurseriesEndpoint}/mine/gallery$query');
       final list = (res['data'] as List<dynamic>?) ?? [];
       _gallery = list
           .map((item) => GalleryImage.fromJson(item as Map<String, dynamic>))
@@ -538,6 +583,7 @@ class OwnerProvider extends ChangeNotifier {
 
       final res = await _api.post('${ApiConstants.nurseriesEndpoint}/mine/gallery', {
         'url': url,
+        if (_nursery != null) 'nurseryId': _nursery!.id,
         if (publicId != null) 'publicId': publicId,
         if (caption != null && caption.trim().isNotEmpty) 'caption': caption.trim(),
         if (category != null && category.trim().isNotEmpty) 'category': category.trim(),
@@ -577,6 +623,7 @@ class OwnerProvider extends ChangeNotifier {
         if (url != null && url.isNotEmpty) {
           final res = await _api.post('${ApiConstants.nurseriesEndpoint}/mine/gallery', {
             'url': url,
+            if (_nursery != null) 'nurseryId': _nursery!.id,
             if (publicId != null) 'publicId': publicId,
             if (category != null && category.trim().isNotEmpty) 'category': category.trim(),
           });
@@ -654,7 +701,8 @@ class OwnerProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await _api.get('/orders/mine');
+      final query = _nursery != null ? '?nurseryId=${_nursery!.id}' : '';
+      final res = await _api.get('/orders/mine$query');
       final list = (res['data'] as List<dynamic>?) ?? [];
       _orders = list
           .map((item) => NurseryOrder.fromJson(item as Map<String, dynamic>))
@@ -664,6 +712,34 @@ class OwnerProvider extends ChangeNotifier {
     } catch (e) {
       _ordersError = 'Failed to load orders: $e';
       _isOrdersLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Fetch feedback & reviews received for this nursery
+  Future<void> fetchFeedbacks() async {
+    _isFeedbacksLoading = true;
+    _feedbacksError = null;
+    notifyListeners();
+
+    try {
+      final query = _nursery != null ? '?nurseryId=${_nursery!.id}' : '';
+      final res = await _api.get('${ApiConstants.myNurseryFeedbacksEndpoint}$query');
+      final list = (res['data'] as List<dynamic>?) ?? [];
+      _feedbacks = list
+          .map((item) => FeedbackModel.fromJson(item as Map<String, dynamic>))
+          .toList();
+      if (res['averageRating'] != null) {
+        _averageRating = double.tryParse(res['averageRating'].toString()) ?? 0.0;
+      }
+      if (res['totalRatings'] != null) {
+        _totalRatings = int.tryParse(res['totalRatings'].toString()) ?? _feedbacks.length;
+      }
+      _isFeedbacksLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _feedbacksError = 'Failed to load feedback: $e';
+      _isFeedbacksLoading = false;
       notifyListeners();
     }
   }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../providers/wishlist_provider.dart';
 import 'models/plant.dart';
 
 class PlantCard extends StatelessWidget {
@@ -22,26 +24,77 @@ class PlantCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Plant image ──────────────────────────────────────
+            // ── Plant image with Wishlist Toggle ─────────────────
             Expanded(
-              child: ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(15)),
-                child: plant.imageUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: plant.imageUrl!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        placeholder: (_, __) => Container(
-                          color: AppColors.botanicalGreenLight,
-                          child: const Center(
-                            child: Icon(Icons.eco,
-                                color: AppColors.botanicalGreen, size: 40),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(15)),
+                    child: plant.imageUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: plant.imageUrl!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            placeholder: (_, __) => Container(
+                              color: AppColors.botanicalGreenLight,
+                              child: const Center(
+                                child: Icon(Icons.eco,
+                                    color: AppColors.botanicalGreen, size: 40),
+                              ),
+                            ),
+                            errorWidget: (_, __, ___) => _PlantPlaceholder(),
+                          )
+                        : _PlantPlaceholder(),
+                  ),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Consumer<WishlistProvider>(
+                      builder: (ctx, wishlist, _) {
+                        final isFav = wishlist.isWishlisted(plant.id);
+                        return GestureDetector(
+                          onTap: () async {
+                            final added = await wishlist.toggleWishlist(plant);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    added
+                                        ? '❤️ Added ${plant.name} to Wishlist'
+                                        : 'Removed ${plant.name} from Wishlist',
+                                  ),
+                                  duration: const Duration(seconds: 2),
+                                  backgroundColor: AppColors.botanicalGreen,
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.85),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              isFav ? Icons.favorite : Icons.favorite_border,
+                              size: 18,
+                              color: isFav ? Colors.redAccent : AppColors.textSecondary,
+                            ),
                           ),
-                        ),
-                        errorWidget: (_, __, ___) => _PlantPlaceholder(),
-                      )
-                    : _PlantPlaceholder(),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
             // ── Info section ─────────────────────────────────────

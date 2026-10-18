@@ -26,3 +26,7 @@ android/key.properties
 # Secrets / environment
 .env
 *.env.local
+
+# Build logs
+build-log.txt
+*.log

@@ -12,6 +12,9 @@ import 'providers/auth_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/location_provider.dart';
 import 'providers/owner_provider.dart';
+import 'providers/reminder_provider.dart';
+import 'providers/wishlist_provider.dart';
+import 'providers/language_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +42,15 @@ class GoGreenApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) => LocationProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ReminderProvider()..loadReminders(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => WishlistProvider()..loadWishlist(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => LanguageProvider()..loadLanguage(),
         ),
       ],
       child: MaterialApp(
@@ -70,6 +82,8 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = context.watch<LanguageProvider>();
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -78,26 +92,26 @@ class _MainShellState extends State<MainShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (i) => setState(() => _currentIndex = i),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon: const Icon(Icons.home),
+            label: lang.tr('nav_home'),
           ),
           NavigationDestination(
-            icon: Icon(Icons.local_florist_outlined),
-            selectedIcon: Icon(Icons.local_florist),
-            label: 'Plants',
+            icon: const Icon(Icons.local_florist_outlined),
+            selectedIcon: const Icon(Icons.local_florist),
+            label: lang.tr('nav_plants'),
           ),
           NavigationDestination(
-            icon: Icon(Icons.store_outlined),
-            selectedIcon: Icon(Icons.store),
-            label: 'Nurseries',
+            icon: const Icon(Icons.store_outlined),
+            selectedIcon: const Icon(Icons.store),
+            label: lang.tr('nav_nurseries'),
           ),
           NavigationDestination(
-            icon: Icon(Icons.smart_toy_outlined),
-            selectedIcon: Icon(Icons.smart_toy),
-            label: 'AI',
+            icon: const Icon(Icons.smart_toy_outlined),
+            selectedIcon: const Icon(Icons.smart_toy),
+            label: lang.tr('nav_ai'),
           ),
         ],
       ),

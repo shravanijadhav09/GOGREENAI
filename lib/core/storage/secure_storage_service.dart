@@ -61,4 +61,32 @@ class SecureStorageService {
     await _storage.delete(key: _keyRefreshToken);
     await _storage.delete(key: _keyUserData);
   }
+
+  static const String _keyReminders = 'gg_care_reminders';
+  static const String _keyWishlist = 'gg_user_wishlist';
+  static const String _keyLanguage = 'gg_app_language';
+
+  Future<void> saveRemindersRaw(String jsonString) async {
+    await _storage.write(key: _keyReminders, value: jsonString);
+  }
+
+  Future<String?> getRemindersRaw() async {
+    return await _storage.read(key: _keyReminders);
+  }
+
+  Future<void> saveWishlistRaw(String jsonString) async {
+    await _storage.write(key: _keyWishlist, value: jsonString);
+  }
+
+  Future<String?> getWishlistRaw() async {
+    return await _storage.read(key: _keyWishlist);
+  }
+
+  Future<void> saveLanguage(String langCode) async {
+    await _storage.write(key: _keyLanguage, value: langCode);
+  }
+
+  Future<String?> getLanguage() async {
+    return await _storage.read(key: _keyLanguage);
+  }
 }

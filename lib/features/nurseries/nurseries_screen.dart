@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers/app_provider.dart';
@@ -16,14 +18,24 @@ class NurseriesScreen extends StatefulWidget {
 
 class _NurseriesScreenState extends State<NurseriesScreen> {
   String? _selectedCity;
+  bool _isMapView = false;
+  Nursery? _selectedMapNursery;
+  late final MapController _mapController;
 
   @override
   void initState() {
     super.initState();
+    _mapController = MapController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final prov = context.read<AppProvider>();
       if (prov.nurseriesState == LoadState.idle) prov.fetchNurseries();
     });
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
   }
 
   Future<void> _openDirections(Nursery nursery) async {
@@ -92,10 +104,22 @@ class _NurseriesScreenState extends State<NurseriesScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Nearby Nurseries'),
+        title: Text(_isMapView ? 'Nursery Map Discovery' : 'Nearby Nurseries'),
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: Icon(
+              _isMapView ? Icons.format_list_bulleted : Icons.map_outlined,
+              color: AppColors.botanicalGreen,
+            ),
+            tooltip: _isMapView ? 'Switch to List View' : 'Switch to Map Discovery',
+            onPressed: () {
+              setState(() {
+                _isMapView = !_isMapView;
+              });
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.textPrimary),
             tooltip: 'Refresh Nurseries',
@@ -256,7 +280,7 @@ class _NurseriesScreenState extends State<NurseriesScreen> {
             ),
           ),
 
-          // ── Nurseries List ──────────────────────────────────────
+          // ── Nurseries Content: Map Discovery vs List ───────────────────
           Expanded(
             child: Consumer<AppProvider>(
               builder: (ctx, prov, _) {
@@ -305,6 +329,10 @@ class _NurseriesScreenState extends State<NurseriesScreen> {
                       ],
                     ),
                   );
+                }
+
+                if (_isMapView) {
+                  return _buildMapView(displayNurseries, locProv);
                 }
 
                 return RefreshIndicator(
@@ -485,6 +513,335 @@ class _NurseriesScreenState extends State<NurseriesScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMapView(List<Nursery> nurseries, LocationProvider locProv) {
+    final nurseriesWithCoords = nurseries.where((n) => n.hasCoordinates).toList();
+
+    LatLng initialCenter;
+    if (locProv.hasLocation) {
+      initialCenter = LatLng(locProv.latitude!, locProv.longitude!);
+    } else if (nurseriesWithCoords.isNotEmpty) {
+      initialCenter = LatLng(nurseriesWithCoords.first.latitude!, nurseriesWithCoords.first.longitude!);
+    } else {
+      initialCenter = const LatLng(18.5204, 73.8567);
+    }
+
+    final markers = <Marker>[];
+
+    // User location marker
+    if (locProv.hasLocation) {
+      markers.add(
+        Marker(
+          point: LatLng(locProv.latitude!, locProv.longitude!),
+          width: 50,
+          height: 50,
+          child: Tooltip(
+            message: 'You are here',
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.blue.withValues(alpha: 0.25),
+                  ),
+                ),
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.blue.shade700,
+                    border: Border.all(color: Colors.white, width: 3),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Nursery markers
+    for (final n in nurseriesWithCoords) {
+      final isSelected = _selectedMapNursery?.id == n.id;
+      markers.add(
+        Marker(
+          point: LatLng(n.latitude!, n.longitude!),
+          width: 70,
+          height: 60,
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedMapNursery = n;
+              });
+              _mapController.move(LatLng(n.latitude!, n.longitude!), 14.5);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.accentGold : AppColors.botanicalGreen,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: isSelected ? 8 : 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    isSelected ? Icons.storefront : Icons.eco,
+                    color: Colors.white,
+                    size: isSelected ? 22 : 18,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: Colors.black87,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    n.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: initialCenter,
+            initialZoom: 12.0,
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.all,
+            ),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.gogreenai.app',
+            ),
+            MarkerLayer(markers: markers),
+          ],
+        ),
+
+        // Controls (Recenter, Zoom In, Zoom Out)
+        Positioned(
+          top: 16,
+          right: 16,
+          child: Column(
+            children: [
+              FloatingActionButton.small(
+                heroTag: 'map_recenter',
+                backgroundColor: Colors.white,
+                foregroundColor: AppColors.botanicalGreen,
+                onPressed: () {
+                  if (locProv.hasLocation) {
+                    _mapController.move(LatLng(locProv.latitude!, locProv.longitude!), 14.0);
+                  } else {
+                    locProv.requestUserLocation().then((_) {
+                      if (locProv.hasLocation && mounted) {
+                        _mapController.move(LatLng(locProv.latitude!, locProv.longitude!), 14.0);
+                      }
+                    });
+                  }
+                },
+                tooltip: 'My Location',
+                child: const Icon(Icons.my_location),
+              ),
+              const SizedBox(height: 8),
+              FloatingActionButton.small(
+                heroTag: 'map_zoom_in',
+                backgroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
+                onPressed: () {
+                  final zoom = _mapController.camera.zoom + 1.0;
+                  _mapController.move(_mapController.camera.center, zoom);
+                },
+                tooltip: 'Zoom In',
+                child: const Icon(Icons.add),
+              ),
+              const SizedBox(height: 8),
+              FloatingActionButton.small(
+                heroTag: 'map_zoom_out',
+                backgroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
+                onPressed: () {
+                  final zoom = _mapController.camera.zoom - 1.0;
+                  _mapController.move(_mapController.camera.center, zoom);
+                },
+                tooltip: 'Zoom Out',
+                child: const Icon(Icons.remove),
+              ),
+            ],
+          ),
+        ),
+
+        // Bottom Selected Nursery Card
+        if (_selectedMapNursery != null)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.botanicalGreen.withValues(alpha: 0.4), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.botanicalGreenLight,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: _selectedMapNursery!.logoUrl != null && _selectedMapNursery!.logoUrl!.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.network(_selectedMapNursery!.logoUrl!, fit: BoxFit.cover),
+                              )
+                            : const Icon(Icons.storefront, color: AppColors.botanicalGreen, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _selectedMapNursery!.name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (_selectedMapNursery!.isVerified) ...[
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.verified, color: AppColors.botanicalGreen, size: 16),
+                                ],
+                              ],
+                            ),
+                            if (_selectedMapNursery!.city != null)
+                              Text(
+                                _selectedMapNursery!.city!,
+                                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20, color: AppColors.textMuted),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => setState(() => _selectedMapNursery = null),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      if (locProv.hasLocation && _selectedMapNursery!.hasCoordinates) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _selectedMapNursery!.distanceDisplayFrom(locProv.latitude, locProv.longitude) ?? '',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryBlue,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      if (_selectedMapNursery!.plantCount != null)
+                        Text(
+                          '${_selectedMapNursery!.plantCount} plants in stock',
+                          style: const TextStyle(fontSize: 12, color: AppColors.botanicalGreen, fontWeight: FontWeight.w600),
+                        ),
+                      const Spacer(),
+                      OutlinedButton.icon(
+                        onPressed: () => _openDirections(_selectedMapNursery!),
+                        icon: const Icon(Icons.directions, size: 14),
+                        label: const Text('Directions'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primaryBlue,
+                          side: const BorderSide(color: Color(0xFFBFDBFE)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => NurseryDetailScreen(nursery: _selectedMapNursery!)),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.botanicalGreen,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('View Plants'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
