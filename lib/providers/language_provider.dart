@@ -301,5 +301,82 @@ class LanguageProvider extends ChangeNotifier {
       'mr': 'रेझरपे द्वारे सुरक्षित पेमेंट करा',
       'hi': 'रेज़रपे द्वारा सुरक्षित भुगतान करें',
     },
+
+    // Order Confirmation Dialog
+    'order_placed_title': {
+      'en': 'Order Placed!',
+      'mr': 'ऑर्डर नोंदवली गेली!',
+      'hi': 'ऑर्डर दर्ज हो गया!',
+    },
+    'order_id_label': {
+      'en': 'Order ID',
+      'mr': 'ऑर्डर क्रमांक',
+      'hi': 'ऑर्डर संख्या',
+    },
+    'customer_name_label': {
+      'en': 'Customer Name',
+      'mr': 'ग्राहकाचे नाव',
+      'hi': 'ग्राहक का नाम',
+    },
+    'nursery_name_label': {
+      'en': 'Nursery Name',
+      'mr': 'रोपवाटिकेचे नाव',
+      'hi': 'नर्सरी का नाम',
+    },
+    'plant_name_label': {
+      'en': 'Plant Name',
+      'mr': 'वनस्पतीचे नाव',
+      'hi': 'पौधे का नाम',
+    },
+    'quantity_label': {
+      'en': 'Quantity',
+      'mr': 'प्रमाण (Quantity)',
+      'hi': 'मात्रा',
+    },
+    'price_label': {
+      'en': 'Price',
+      'mr': 'दर (किंमत)',
+      'hi': 'मूल्य (कीमत)',
+    },
+    'total_amount_label': {
+      'en': 'Total Amount',
+      'mr': 'एकूण रक्कम',
+      'hi': 'कुल राशि',
+    },
+    'payment_status_label': {
+      'en': 'Payment Status',
+      'mr': 'पेमेंट स्थिती',
+      'hi': 'भुगतान स्थिति',
+    },
+    'payment_verified_paid': {
+      'en': 'Payment Successful (Verified via Razorpay)',
+      'mr': 'पेमेंट यशस्वी (रेझरपे द्वारे पडताळणी पूर्ण)',
+      'hi': 'भुगतान सफल (रेज़रपे द्वारा सत्यापित)',
+    },
+    'payment_awaiting_verification': {
+      'en': 'Payment submitted — awaiting verification',
+      'mr': 'पेमेंट सबमिट केले — पडताळणी प्रलंबित',
+      'hi': 'भुगतान जमा — सत्यापन लंबित',
+    },
+    'payment_pending_pickup': {
+      'en': 'Pending (To be paid at nursery pickup)',
+      'mr': 'प्रलंबित (रोपवाटिकेत पिकअप करताना द्या)',
+      'hi': 'लंबित (नर्सरी पर पिकअप के समय देय)',
+    },
+    'payment_pending_cod': {
+      'en': 'Pending (Cash on Delivery)',
+      'mr': 'प्रलंबित (डिलिव्हरीच्या वेळी द्या)',
+      'hi': 'लंबित (कैश ऑन डिलीवरी)',
+    },
+    'continue_shopping': {
+      'en': 'Continue Shopping',
+      'mr': 'खरेदी सुरू ठेवा',
+      'hi': 'खरीदारी जारी रखें',
+    },
+    'view_my_orders': {
+      'en': 'View My Orders',
+      'mr': 'माझ्या ऑर्डर्स पहा',
+      'hi': 'मेरे ऑर्डर्स देखें',
+    },
   };
 }

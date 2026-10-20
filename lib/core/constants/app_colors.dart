@@ -35,4 +35,9 @@ class AppColors {
   static const Color success = Color(0xFF10B981);
   static const Color warning = Color(0xFFD97706);
   static const Color error = Color(0xFFDC2626);
+
+  // Dark theme palette
+  static const Color deepForestGreen = Color(0xFF064E3B);
+  static const Color botanicalGreenPrimary = Color(0xFF16834A);
+  static const Color limeGreen = Color(0xFF94D82D);
 }

@@ -9,6 +9,7 @@ import '../nurseries/nursery_detail_screen.dart';
 import '../orders/checkout_screen.dart';
 import '../reminders/plant_care_reminders_screen.dart';
 import '../../providers/wishlist_provider.dart';
+import '../../providers/language_provider.dart';
 import 'wishlist_screen.dart';
 import 'models/plant.dart';
 
@@ -23,28 +24,34 @@ class PlantDetailScreen extends StatefulWidget {
 
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
   final GeminiService _gemini = GeminiService();
-  String? _aiAdvice;
+  PlantCareAdviceResult? _aiAdviceResult;
+  String? _adviceError;
   bool _loadingAdvice = false;
   int _quantity = 1;
 
   void _getAiCareAdvice() async {
+    final langCode = context.read<LanguageProvider>().languageCode;
     setState(() {
       _loadingAdvice = true;
-      _aiAdvice = null;
+      _aiAdviceResult = null;
+      _adviceError = null;
     });
 
     try {
-      final advice = await _gemini.getPlantCareAdvice(widget.plant.name);
+      final advice = await _gemini.getPlantCareAdvice(
+        widget.plant.name,
+        language: langCode,
+      );
       if (mounted) {
         setState(() {
-          _aiAdvice = advice;
+          _aiAdviceResult = advice;
           _loadingAdvice = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _aiAdvice = 'Could not retrieve AI care advice. Check connection or Gemini key.';
+          _adviceError = 'Could not retrieve AI care advice. Check backend server and Gemini key.';
           _loadingAdvice = false;
         });
       }
@@ -690,7 +697,14 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        if (_aiAdvice == null && !_loadingAdvice)
+                        if (_aiAdviceResult == null && !_loadingAdvice) ...[
+                          if (_adviceError != null) ...[
+                            Text(
+                              _adviceError!,
+                              style: const TextStyle(fontSize: 12, color: AppColors.error),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                           ElevatedButton.icon(
                             onPressed: _getAiCareAdvice,
                             style: ElevatedButton.styleFrom(
@@ -703,6 +717,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                             icon: const Icon(Icons.auto_awesome, size: 18),
                             label: Text('Generate Care Advice for ${plant.name}'),
                           ),
+                        ],
                         if (_loadingAdvice)
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 12),
@@ -727,22 +742,122 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                               ],
                             ),
                           ),
-                        if (_aiAdvice != null) ...[
+                        if (_aiAdviceResult != null) ...[
                           Text(
-                            _aiAdvice!,
+                            _aiAdviceResult!.shortAnswer,
                             style: const TextStyle(
-                              fontSize: 13,
-                              height: 1.5,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.45,
                               color: AppColors.textPrimary,
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          // Guidance items
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.water_drop_outlined, size: 18, color: Colors.blue),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Watering: ${_aiAdviceResult!.wateringGuidance}',
+                                        style: const TextStyle(fontSize: 12.5),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: 16),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.wb_sunny_outlined, size: 18, color: Colors.amber),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Sunlight: ${_aiAdviceResult!.lightRequirements}',
+                                        style: const TextStyle(fontSize: 12.5),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: 16),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.yard_outlined, size: 18, color: AppColors.botanicalGreen),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Soil: ${_aiAdviceResult!.soilConditions}',
+                                        style: const TextStyle(fontSize: 12.5),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_aiAdviceResult!.careSteps.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Actionable Care Steps:',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            const SizedBox(height: 6),
+                            ..._aiAdviceResult!.careSteps.asMap().entries.map((entry) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('${entry.key + 1}. ', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                    Expanded(child: Text(entry.value, style: const TextStyle(fontSize: 12))),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                          if (_aiAdviceResult!.warnings.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.orange.shade200),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      _aiAdviceResult!.warnings.join(' • '),
+                                      style: TextStyle(fontSize: 11.5, color: Colors.orange.shade900),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 8),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton.icon(
                               onPressed: _getAiCareAdvice,
                               icon: const Icon(Icons.refresh, size: 16),
-                              label: const Text('Regenerate'),
+                              label: const Text('Regenerate Advice'),
                               style: TextButton.styleFrom(
                                 foregroundColor: AppColors.botanicalGreen,
                               ),

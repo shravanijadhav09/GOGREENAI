@@ -2,10 +2,12 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/network/api_client.dart';
 import '../../core/services/gemini_service.dart';
+import '../../providers/language_provider.dart';
 import '../plants/models/plant.dart';
 import '../plants/plant_detail_screen.dart';
 
@@ -22,10 +24,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   final GeminiService _gemini = GeminiService();
   final ApiClient _api = ApiClient();
   final TextEditingController _chatCtrl = TextEditingController();
+  final TextEditingController _symptomDescCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
   final ImagePicker _picker = ImagePicker();
 
-  // Active tab: 'recommend' | 'chat' | 'identify'
+  // Active tab: 'recommend' | 'chat' | 'identify' | 'diagnose'
   late String _activeTab;
 
   // ── Chat state ──
@@ -36,6 +39,13 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   File? _selectedImage;
   PlantIdentificationResult? _idResult;
   bool _isLoadingId = false;
+  String? _idError;
+
+  // ── Plant Disease Diagnosis state ──
+  File? _selectedDiseaseImage;
+  PlantDiseaseDiagnosisResult? _diagnosisResult;
+  bool _isLoadingDiagnosis = false;
+  String? _diagnosisError;
 
   // ── Find My Plant state ──
   String _placement = 'indoor'; // 'indoor', 'outdoor', 'both'
@@ -116,6 +126,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     final text = _chatCtrl.text.trim();
     if (text.isEmpty || _isLoadingChat) return;
 
+    final lang = context.read<LanguageProvider>().languageCode;
+
     setState(() {
       _messages.add({'role': 'user', 'text': text});
       _chatCtrl.clear();
@@ -124,56 +136,168 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     _scrollToBottom();
 
     try {
-      final reply = await _gemini.chatWithPlantAssistant(
+      final chatRes = await _gemini.chatWithPlantAssistant(
         text,
         _messages.sublist(0, _messages.length - 1),
+        language: lang,
       );
-      setState(() {
-        _messages.add({'role': 'model', 'text': reply});
-        _isLoadingChat = false;
-      });
-    } catch (e) {
-      setState(() {
-        _messages.add({
-          'role': 'model',
-          'text': 'Sorry, I encountered an error. Please try again.'
+      if (mounted) {
+        setState(() {
+          _messages.add({'role': 'model', 'text': chatRes.reply});
+          _isLoadingChat = false;
         });
-        _isLoadingChat = false;
-      });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _messages.add({
+            'role': 'model',
+            'text': 'Sorry, could not process query: $e',
+          });
+          _isLoadingChat = false;
+        });
+      }
     }
     _scrollToBottom();
   }
 
   // ── Plant identification from camera/gallery ─────────────────
   Future<void> _pickAndIdentify(ImageSource source) async {
-    final xFile = await _picker.pickImage(
-      source: source,
-      imageQuality: 85,
-      maxWidth: 1024,
-    );
-    if (xFile == null) return;
+    try {
+      final xFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1024,
+      );
+      if (xFile == null) return; // User canceled picker safely
 
+      setState(() {
+        _selectedImage = File(xFile.path);
+        _idResult = null;
+        _idError = null;
+        _isLoadingId = true;
+      });
+
+      await _executeIdentify();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingId = false;
+          _idError = 'Failed to pick image: $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _executeIdentify() async {
+    if (_selectedImage == null) return;
     setState(() {
-      _selectedImage = File(xFile.path);
-      _idResult = null;
       _isLoadingId = true;
+      _idError = null;
     });
 
     try {
-      final result = await _gemini.identifyPlant(_selectedImage!);
-      setState(() {
-        _idResult = result;
-        _isLoadingId = false;
-      });
-    } catch (e) {
-      setState(() => _isLoadingId = false);
+      final lang = context.read<LanguageProvider>().languageCode;
+      final result = await _gemini.identifyPlant(
+        _selectedImage!,
+        language: lang,
+      );
+
       if (mounted) {
+        setState(() {
+          _idResult = result;
+          _isLoadingId = false;
+          _idError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingId = false;
+          _idError = e.toString().replaceFirst('Exception: ', '');
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Plant identification failed. Check your API key.')),
+          SnackBar(
+            content: Text('Plant identification failed: $_idError'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
+  }
+
+  void _retryIdentify() {
+    _executeIdentify();
+  }
+
+  // ── Plant disease diagnosis from camera/gallery ──────────────
+  Future<void> _pickAndDiagnose(ImageSource source) async {
+    try {
+      final xFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1024,
+      );
+      if (xFile == null) return; // User canceled picker safely
+
+      setState(() {
+        _selectedDiseaseImage = File(xFile.path);
+        _diagnosisResult = null;
+        _diagnosisError = null;
+        _isLoadingDiagnosis = true;
+      });
+
+      await _executeDiagnose();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingDiagnosis = false;
+          _diagnosisError = 'Failed to pick image: $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _executeDiagnose() async {
+    if (_selectedDiseaseImage == null) return;
+    setState(() {
+      _isLoadingDiagnosis = true;
+      _diagnosisError = null;
+    });
+
+    try {
+      final lang = context.read<LanguageProvider>().languageCode;
+      final result = await _gemini.diagnosePlantDisease(
+        _selectedDiseaseImage!,
+        description: _symptomDescCtrl.text.trim(),
+        language: lang,
+      );
+
+      if (mounted) {
+        setState(() {
+          _diagnosisResult = result;
+          _isLoadingDiagnosis = false;
+          _diagnosisError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingDiagnosis = false;
+          _diagnosisError = e.toString().replaceFirst('Exception: ', '');
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Disease diagnosis failed: $_diagnosisError'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _retryDiagnose() {
+    _executeDiagnose();
   }
 
   void _scrollToBottom() {
@@ -191,18 +315,20 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   @override
   void dispose() {
     _chatCtrl.dispose();
+    _symptomDescCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final lang = context.watch<LanguageProvider>();
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'GoGreen AI Assistant',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        title: Text(
+          lang.tr('nav_ai'),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,
@@ -225,6 +351,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         return _buildFindMyPlant();
       case 'identify':
         return _buildIdentify();
+      case 'diagnose':
+        return _buildDiagnose();
       case 'chat':
       default:
         return _buildChat();
@@ -763,15 +891,182 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: CircularProgressIndicator(color: AppColors.botanicalGreen),
               ),
+            if (_idError != null && !_isLoadingId) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _idError!,
+                            style: TextStyle(color: Colors.red.shade900, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton.icon(
+                      onPressed: _retryIdentify,
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Retry Identification'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.botanicalGreen,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (_idResult != null) _IdentificationResult(result: _idResult!),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: () => setState(() {
                 _selectedImage = null;
                 _idResult = null;
+                _idError = null;
               }),
               icon: const Icon(Icons.refresh),
               label: const Text('Try Another Plant'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Disease Diagnosis UI ─────────────────────────────────────
+  Widget _buildDiagnose() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Banner
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.biotech_outlined, color: Colors.white, size: 32),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Plant Disease Diagnosis',
+                          style: TextStyle(
+                              color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 2),
+                      Text(
+                          'Upload a photo of your plant and optionally describe symptoms for an AI-assisted analysis.',
+                          style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Symptom description field (shown before/after image)
+          TextField(
+            controller: _symptomDescCtrl,
+            maxLines: 2,
+            decoration: InputDecoration(
+              hintText: 'Optional: describe what you see (yellowing, spots, wilting…)',
+              prefixIcon: const Icon(Icons.edit_note_outlined),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Image picker or selected image
+          if (_selectedDiseaseImage == null)
+            _DiseasePickerButtons(onPick: _pickAndDiagnose)
+          else ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.file(_selectedDiseaseImage!,
+                  height: 220, width: double.infinity, fit: BoxFit.cover),
+            ),
+            const SizedBox(height: 16),
+            if (_isLoadingDiagnosis)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: CircularProgressIndicator(color: Color(0xFF7C3AED)),
+                ),
+              ),
+            if (_diagnosisError != null && !_isLoadingDiagnosis) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _diagnosisError!,
+                            style: TextStyle(color: Colors.red.shade900, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton.icon(
+                      onPressed: _retryDiagnose,
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Retry Diagnosis'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            if (_diagnosisResult != null)
+              _DiagnosisResult(result: _diagnosisResult!),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => setState(() {
+                _selectedDiseaseImage = null;
+                _diagnosisResult = null;
+                _diagnosisError = null;
+                _symptomDescCtrl.clear();
+              }),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Diagnose Another Plant'),
             ),
           ],
         ],
@@ -790,12 +1085,16 @@ class _TabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: _Tab(label: 'Find My Plant', id: 'recommend', activeTab: activeTab, onTap: onTabChanged)),
-        Expanded(child: _Tab(label: 'Chat', id: 'chat', activeTab: activeTab, onTap: onTabChanged)),
-        Expanded(child: _Tab(label: 'Identify Plant', id: 'identify', activeTab: activeTab, onTap: onTabChanged)),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _Tab(label: 'Find My Plant', id: 'recommend', activeTab: activeTab, onTap: onTabChanged),
+          _Tab(label: 'Identify Plant', id: 'identify', activeTab: activeTab, onTap: onTabChanged),
+          _Tab(label: 'Diagnose Disease', id: 'diagnose', activeTab: activeTab, onTap: onTabChanged),
+          _Tab(label: 'Plant Chat', id: 'chat', activeTab: activeTab, onTap: onTabChanged),
+        ],
+      ),
     );
   }
 }
@@ -1049,7 +1348,7 @@ class _IdentificationResult extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  result.commonName,
+                  result.commonName.isNotEmpty ? result.commonName : result.plantName,
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 20,
@@ -1060,10 +1359,10 @@ class _IdentificationResult extends StatelessWidget {
               _ConfidenceBadge(confidence: result.confidence),
             ],
           ),
-          if (result.scientificName.isNotEmpty) ...[
+          if (result.plantName.isNotEmpty && result.plantName != result.commonName) ...[
             const SizedBox(height: 4),
             Text(
-              result.scientificName,
+              result.plantName,
               style: const TextStyle(
                 fontStyle: FontStyle.italic,
                 color: AppColors.textSecondary,
@@ -1071,27 +1370,65 @@ class _IdentificationResult extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          Text(result.briefDescription,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, height: 1.4, fontSize: 14)),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _InfoChip(icon: Icons.water_drop_outlined, label: result.watering),
-              _InfoChip(icon: Icons.wb_sunny_outlined, label: result.sunlight),
-              _InfoChip(icon: Icons.fitness_center, label: result.careDifficulty),
-              if (result.isPetSafe)
-                const _InfoChip(
-                    icon: Icons.pets, label: 'Pet Safe', positive: true),
-              if (result.isIndoor)
-                const _InfoChip(icon: Icons.home_outlined, label: 'Indoor'),
-              if (result.isOutdoor)
-                const _InfoChip(icon: Icons.park_outlined, label: 'Outdoor'),
-            ],
-          ),
+          if (result.characteristics.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text(
+              'Visible Characteristics',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 6),
+            ...result.characteristics.map(
+              (c) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('• ', style: TextStyle(color: AppColors.botanicalGreen, fontWeight: FontWeight.bold)),
+                    Expanded(child: Text(c, style: const TextStyle(fontSize: 13, height: 1.35))),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          if (result.careSummary != null) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _InfoChip(icon: Icons.water_drop_outlined, label: result.careSummary!.watering),
+                _InfoChip(icon: Icons.wb_sunny_outlined, label: result.careSummary!.sunlight),
+                _InfoChip(icon: Icons.fitness_center, label: result.careSummary!.difficulty),
+              ],
+            ),
+          ],
+          if (result.suggestedNextSteps.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text(
+              'Suggested Next Steps',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 6),
+            ...result.suggestedNextSteps.asMap().entries.map(
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${e.key + 1}. ',
+                      style: const TextStyle(
+                        color: AppColors.botanicalGreen,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Expanded(child: Text(e.value, style: const TextStyle(fontSize: 13, height: 1.35))),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1105,7 +1442,7 @@ class _ConfidenceBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Color color;
-    switch (confidence) {
+    switch (confidence.toLowerCase()) {
       case 'high':
         color = AppColors.botanicalGreen;
         break;
@@ -1123,8 +1460,7 @@ class _ConfidenceBadge extends StatelessWidget {
       ),
       child: Text(
         confidence.toUpperCase(),
-        style: TextStyle(
-            color: color, fontSize: 11, fontWeight: FontWeight.w700),
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -1133,34 +1469,28 @@ class _ConfidenceBadge extends StatelessWidget {
 class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  final bool positive;
 
-  const _InfoChip(
-      {required this.icon, required this.label, this.positive = false});
+  const _InfoChip({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: positive ? AppColors.botanicalGreenLight : AppColors.borderLight,
+        color: AppColors.borderLight,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon,
-              size: 14,
-              color: positive
-                  ? AppColors.botanicalGreen
-                  : AppColors.textSecondary),
+          Icon(icon, size: 14, color: AppColors.textSecondary),
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: positive ? AppColors.botanicalGreen : AppColors.textPrimary,
+              color: AppColors.textPrimary,
             ),
           ),
         ],
@@ -1168,3 +1498,253 @@ class _InfoChip extends StatelessWidget {
     );
   }
 }
+
+// ── Disease Diagnosis Subwidgets ──────────────────────────────────────
+
+class _DiseasePickerButtons extends StatelessWidget {
+  final Function(ImageSource) onPick;
+  const _DiseasePickerButtons({required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          height: 180,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F0FF),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF7C3AED), width: 1.5),
+          ),
+          child: const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.biotech_outlined, size: 64, color: Color(0xFF7C3AED)),
+                SizedBox(height: 8),
+                Text(
+                  'Take or upload a photo to diagnose disease',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => onPick(ImageSource.camera),
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('Camera'),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7C3AED)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => onPick(ImageSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Gallery'),
+                style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF7C3AED)),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DiagnosisResult extends StatelessWidget {
+  final PlantDiseaseDiagnosisResult result;
+  const _DiagnosisResult({required this.result});
+
+  Color get _severityColor {
+    switch (result.severity.toLowerCase()) {
+      case 'high':
+        return AppColors.error;
+      case 'moderate':
+        return AppColors.warning;
+      default:
+        return AppColors.botanicalGreen;
+    }
+  }
+
+  IconData get _severityIcon {
+    switch (result.severity.toLowerCase()) {
+      case 'high':
+        return Icons.warning_rounded;
+      case 'moderate':
+        return Icons.info_rounded;
+      default:
+        return Icons.check_circle_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sColor = _severityColor;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: plant name + severity badge
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      result.plantName,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      result.possibleDisease,
+                      style: TextStyle(fontSize: 13, color: sColor, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: sColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_severityIcon, size: 14, color: sColor),
+                    const SizedBox(width: 4),
+                    Text(result.severity, style: TextStyle(fontSize: 11, color: sColor, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Observed Symptoms
+          if (result.observedSymptoms.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text('Observed Symptoms',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 6),
+            ...result.observedSymptoms.map((s) => Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('• ', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+                      Expanded(child: Text(s, style: const TextStyle(fontSize: 13, height: 1.3))),
+                    ],
+                  ),
+                )),
+          ],
+
+          // Recommended Treatments
+          if (result.recommendedTreatments.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text('Recommended Treatments',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 6),
+            ...result.recommendedTreatments.asMap().entries.map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${e.key + 1}. ',
+                          style: const TextStyle(
+                              color: AppColors.botanicalGreen, fontWeight: FontWeight.bold, fontSize: 13)),
+                      Expanded(child: Text(e.value, style: const TextStyle(fontSize: 13, height: 1.35))),
+                    ],
+                  ),
+                )),
+          ],
+
+          // Prevention Measures
+          if (result.preventionMeasures.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text('Prevention Measures',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 6),
+            ...result.preventionMeasures.map((p) => Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('✓ ', style: TextStyle(color: AppColors.botanicalGreen, fontWeight: FontWeight.bold)),
+                      Expanded(child: Text(p, style: const TextStyle(fontSize: 13, height: 1.3))),
+                    ],
+                  ),
+                )),
+          ],
+
+          // Expert Consultation
+          if (result.expertConsultationGuidance.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F9FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFBAE6FD)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.person_outline, color: Color(0xFF0369A1), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      result.expertConsultationGuidance,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF0C4A6E), height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // AI Estimate Notice
+          if (result.isEstimateNotice.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      result.isEstimateNotice,
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF78350F), height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+

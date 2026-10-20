@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/app_colors.dart';
+import '../../features/green_gallery/green_gallery_screen.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/owner_provider.dart';
 import '../nurseries/models/nursery.dart';
@@ -150,9 +151,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
-                        'OWNER',
-                        style: TextStyle(
+                      child: Text(
+                        user?.role.displayName.toUpperCase() ?? 'OWNER',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w800,
                           fontSize: 11,
@@ -307,6 +308,24 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => const OurPlantGalleryScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+
+                // ── Green Gallery Demo ────────────────────────
+                _buildModuleTile(
+                  context,
+                  title: 'Green Gallery Demo',
+                  subtitle: 'Showcase demo images from bundled assets',
+                  icon: Icons.photo_album_outlined,
+                  iconColor: AppColors.botanicalGreen,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const GreenGalleryScreen(),
                       ),
                     );
                   },

@@ -11,6 +11,7 @@ import '../../providers/auth_provider.dart';
 import '../nurseries/models/nursery.dart';
 import '../plants/models/plant.dart';
 import '../../providers/cart_provider.dart';
+import '../../providers/language_provider.dart';
 import 'customer_orders_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -481,117 +482,190 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
 
   void _showOrderSuccessDialog(Map<String, dynamic> order) {
+    final lang = context.read<LanguageProvider>();
     final orderId = (order['id'] as String? ?? '').toUpperCase();
     final shortId = orderId.length > 8 ? orderId.substring(orderId.length - 8) : orderId;
+
+    final customerName = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()
+        : (order['customerName'] as String? ?? 'Valued Customer');
+
+    final nurseryName = _loadedNursery?.name ?? (order['nursery']?['name'] as String? ?? 'GoGreen Nursery');
+
+    final plantName = widget.plant != null
+        ? widget.plant!.name
+        : (widget.cartItems != null && widget.cartItems!.isNotEmpty
+            ? widget.cartItems!.map((e) => e.plant.name).join(', ')
+            : 'Assorted Plants');
+
+    final totalQuantity = widget.plant != null
+        ? '$_quantity'
+        : '${widget.cartItems?.fold<int>(0, (s, i) => s + i.quantity) ?? 1}';
+
+    final unitPrice = widget.plant != null
+        ? '₹${widget.plant!.price.toStringAsFixed(2)}'
+        : '₹${(_totalPrice / (widget.cartItems?.fold<int>(0, (s, i) => s + i.quantity) ?? 1)).toStringAsFixed(2)} avg';
+
+    final totalAmount = '₹${_totalPrice.toStringAsFixed(2)}';
+
+    String paymentMethodDisplay;
+    switch (_paymentMethod) {
+      case 'RAZORPAY':
+        paymentMethodDisplay = 'Razorpay (Online)';
+        break;
+      case 'UPI':
+        paymentMethodDisplay = 'UPI QR / Direct Transfer';
+        break;
+      case 'PAY_AT_PICKUP':
+        paymentMethodDisplay = 'Pay at Nursery';
+        break;
+      case 'COD':
+        paymentMethodDisplay = 'Cash on Delivery';
+        break;
+      default:
+        paymentMethodDisplay = _paymentMethod;
+    }
+
+    String paymentStatusDisplay;
+    Color statusColor;
+    IconData statusIcon;
+    if (_paymentMethod == 'RAZORPAY') {
+      paymentStatusDisplay = lang.tr('payment_verified_paid');
+      statusColor = AppColors.botanicalGreen;
+      statusIcon = Icons.verified_rounded;
+    } else if (_paymentMethod == 'UPI') {
+      paymentStatusDisplay = lang.tr('payment_awaiting_verification');
+      statusColor = Colors.orange.shade800;
+      statusIcon = Icons.hourglass_top_rounded;
+    } else if (_paymentMethod == 'PAY_AT_PICKUP') {
+      paymentStatusDisplay = lang.tr('payment_pending_pickup');
+      statusColor = Colors.amber.shade800;
+      statusIcon = Icons.storefront_rounded;
+    } else {
+      paymentStatusDisplay = lang.tr('payment_pending_cod');
+      statusColor = Colors.amber.shade800;
+      statusIcon = Icons.local_shipping_outlined;
+    }
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Column(
+        title: Column(
           children: [
-            Icon(Icons.check_circle_rounded, color: AppColors.botanicalGreen, size: 54),
-            SizedBox(height: 12),
+            Icon(
+              _paymentMethod == 'RAZORPAY' ? Icons.check_circle_rounded : Icons.task_alt_rounded,
+              color: statusColor,
+              size: 52,
+            ),
+            const SizedBox(height: 10),
             Text(
-              'Order Placed!',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              lang.tr('order_placed_title'),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.botanicalGreenLight,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'Order #$shortId',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.botanicalGreen,
-                    fontSize: 13,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.botanicalGreenLight,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${lang.tr('order_id_label')}: #$shortId',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.botanicalGreen,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.plant != null
-                  ? 'Thank you! Your order request for ${widget.plant!.name} (x$_quantity) has been received by ${_loadedNursery?.name ?? "the nursery"}.'
-                  : 'Thank you! Your order request for ${widget.cartItems!.length} plant varieties has been received by ${_loadedNursery?.name ?? "the nursery"}.',
-              style: const TextStyle(fontSize: 14, height: 1.4),
-            ),
-            const SizedBox(height: 12),
-            if (_paymentMethod == 'RAZORPAY')
+              const SizedBox(height: 16),
+
+              // Itemized Receipt Table
               Container(
-                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.botanicalGreenLight,
+                  color: Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.botanicalGreen.withValues(alpha: 0.3)),
+                  border: Border.all(color: Colors.grey.shade200),
                 ),
-                child: const Row(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Column(
                   children: [
-                    Icon(Icons.check_circle_outline, color: AppColors.botanicalGreenDark, size: 20),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Payment Verified & Paid via Razorpay! Your order is confirmed and accepted by the nursery.',
-                        style: TextStyle(fontSize: 12, color: AppColors.botanicalGreenDark, fontWeight: FontWeight.w600),
-                      ),
+                    _buildReceiptRow(lang.tr('customer_name_label'), customerName),
+                    const Divider(height: 14),
+                    _buildReceiptRow(lang.tr('nursery_name_label'), nurseryName),
+                    const Divider(height: 14),
+                    _buildReceiptRow(lang.tr('plant_name_label'), plantName),
+                    const Divider(height: 14),
+                    _buildReceiptRow(lang.tr('quantity_label'), totalQuantity),
+                    const Divider(height: 14),
+                    _buildReceiptRow(lang.tr('price_label'), unitPrice),
+                    const Divider(height: 14),
+                    _buildReceiptRow(
+                      lang.tr('total_amount_label'),
+                      totalAmount,
+                      isBold: true,
+                      valueColor: AppColors.botanicalGreenDark,
                     ),
+                    const Divider(height: 14),
+                    _buildReceiptRow(lang.tr('payment_method'), paymentMethodDisplay),
                   ],
                 ),
-              )
-            else if (_paymentMethod == 'UPI')
+              ),
+              const SizedBox(height: 14),
+
+              // Status Box
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
+                  color: statusColor.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                  border: Border.all(color: statusColor.withOpacity(0.3)),
                 ),
-                child: const Row(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, color: Color(0xFF2563EB), size: 20),
-                    SizedBox(width: 10),
+                    Icon(statusIcon, color: statusColor, size: 20),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        'Payment verification is pending manual review by the nursery owner. You will be notified when confirmed.',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF)),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.amber.shade200),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.storefront, color: Colors.amber, size: 20),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Please pay the total amount upon collecting your plants at the nursery.',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            lang.tr('payment_status_label'),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: statusColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            paymentStatusDisplay,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: statusColor,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -604,9 +678,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
               );
             },
-            child: const Text(
-              'Track Order Status →',
-              style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.botanicalGreenDark),
+            child: Text(
+              lang.tr('view_my_orders'),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.botanicalGreenDark),
             ),
           ),
           ElevatedButton(
@@ -617,13 +691,39 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.botanicalGreen,
               foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(46),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Done'),
+            child: Text(lang.tr('continue_shopping')),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildReceiptRow(String label, String value, {bool isBold = false, Color? valueColor}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 110,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              color: valueColor ?? AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1212,6 +1312,47 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber.shade300),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.qr_code_scanner, color: Colors.amber.shade800, size: 22),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'QR Code Not Uploaded by Nursery',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: Colors.amber.shade900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'This nursery has not provided a UPI QR image yet. You can transfer using their UPI ID below, choose Razorpay for instant verification, or pay upon pickup.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.amber.shade900,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
 
                     if (nursery.upiId != null && nursery.upiId!.isNotEmpty) ...[

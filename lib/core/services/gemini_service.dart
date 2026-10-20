@@ -1,128 +1,165 @@
 import 'dart:io';
 import 'dart:convert';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import '../constants/api_constants.dart';
+import '../network/api_client.dart';
+import '../../features/ai/models/ai_models.dart';
 
-/// Service that wraps the Gemini SDK for all AI features:
+export '../../features/ai/models/ai_models.dart';
+
+/// Service that communicates with the GoGreenAI backend for all Gemini AI features:
 ///  - Plant identification from a photo
-///  - Care advice for a named plant
-///  - Open-ended plant Q&A chat
+///  - Plant disease & pest diagnosis from a photo
+///  - Plant disease recovery & treatment suggestions
+///  - Structured care guides for specific plants
+///  - Conversational plant assistant chat
+///
+/// Keeps all API keys safely on the backend. Never exposes credentials to the client.
 class GeminiService {
-  late final GenerativeModel _visionModel;
-  late final GenerativeModel _textModel;
+  final ApiClient _api = ApiClient();
+  static const Duration _aiTimeout = Duration(seconds: 45);
 
-  GeminiService() {
-    const key = ApiConstants.geminiApiKey;
-    _visionModel = GenerativeModel(model: ApiConstants.geminiModel, apiKey: key);
-    _textModel = GenerativeModel(
-      model: ApiConstants.geminiModel,
-      apiKey: key,
-      systemInstruction: Content.system(
-        'You are GoGreen Assistant, a friendly expert in plant care, '
-        'indoor gardening, and nursery plants. Answer concisely and helpfully. '
-        'If the question is not about plants, politely redirect the user.',
-      ),
-    );
+  /// Check whether Gemini is configured on the backend
+  Future<bool> isAiConfigured() async {
+    try {
+      final res = await _api.get(ApiConstants.aiStatusEndpoint, timeout: const Duration(seconds: 10));
+      final rawData = res['data'];
+      if (rawData is Map<String, dynamic>) {
+        return (rawData['isConfigured'] as bool?) ?? false;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
-  // ── Plant identification from camera image ─────────────────────
-  Future<PlantIdentificationResult> identifyPlant(File imageFile) async {
+  /// ── 1. Plant identification from camera/gallery image ──────────
+  Future<PlantIdentificationResult> identifyPlant(
+    File imageFile, {
+    String language = 'en',
+  }) async {
     final bytes = await imageFile.readAsBytes();
-    final imagePart = DataPart('image/jpeg', bytes);
+    final base64Image = base64Encode(bytes);
 
-    final prompt = TextPart(
-      'You are an expert botanist. Identify the plant in this image and respond '
-      'in JSON only (no markdown) with the following fields:\n'
-      '{"commonName":"...","scientificName":"...","confidence":"high|medium|low",'
-      '"briefDescription":"...","careDifficulty":"EASY|MODERATE|EXPERT",'
-      '"watering":"LOW|MEDIUM|HIGH","sunlight":"LOW|INDIRECT|DIRECT",'
-      '"isIndoor":true|false,"isOutdoor":true|false,"isPetSafe":true|false}',
+    final payload = {
+      'imageBase64': base64Image,
+      'mimeType': _resolveMimeType(imageFile.path),
+      'language': language,
+    };
+
+    final res = await _api.post(
+      ApiConstants.aiIdentifyEndpoint,
+      payload,
+      timeout: _aiTimeout,
     );
-
-    final response = await _visionModel.generateContent([
-      Content.multi([imagePart, prompt]),
-    ]);
-
-    final text = response.text ?? '{}';
-    final cleaned = text.replaceAll(RegExp(r'```json|```'), '').trim();
-    final json = jsonDecode(cleaned) as Map<String, dynamic>;
-
-    return PlantIdentificationResult.fromJson(json);
+    final data = _extractMap(res['data']);
+    return PlantIdentificationResult.fromJson(data);
   }
 
-  // ── Care advice for a specific plant ──────────────────────────
-  Future<String> getPlantCareAdvice(String plantName, {String? userQuery}) async {
-    final prompt = userQuery != null
-        ? 'I have a plant called "$plantName". My question is: $userQuery. '
-            'Give concise, actionable advice in 3-4 bullet points.'
-        : 'Give me a concise care guide for "$plantName" covering: '
-            'watering, sunlight, soil, common issues, and tips. '
-            'Format as numbered steps, keep it practical.';
+  /// ── 2. Plant disease & symptom diagnosis from image ────────────
+  Future<PlantDiseaseDiagnosisResult> diagnosePlantDisease(
+    File imageFile, {
+    String description = '',
+    String language = 'en',
+  }) async {
+    final bytes = await imageFile.readAsBytes();
+    final base64Image = base64Encode(bytes);
 
-    final response = await _textModel.generateContent([Content.text(prompt)]);
-    return response.text ?? 'Sorry, I could not generate care advice right now.';
+    final payload = {
+      'imageBase64': base64Image,
+      'mimeType': _resolveMimeType(imageFile.path),
+      'description': description,
+      'language': language,
+    };
+
+    final res = await _api.post(
+      ApiConstants.aiDiagnoseEndpoint,
+      payload,
+      timeout: _aiTimeout,
+    );
+    final data = _extractMap(res['data']);
+    return PlantDiseaseDiagnosisResult.fromJson(data);
   }
 
-  // ── Open Q&A chat with plant assistant ────────────────────────
-  Future<String> chatWithPlantAssistant(
+  /// ── 3. Disease Treatment & recovery suggestions ────────────────
+  Future<DiseaseTreatmentResult> getDiseaseTreatmentSuggestions({
+    String plantName = '',
+    String disease = '',
+    String symptoms = '',
+    String language = 'en',
+  }) async {
+    final payload = {
+      if (plantName.isNotEmpty) 'plantName': plantName,
+      if (disease.isNotEmpty) 'disease': disease,
+      if (symptoms.isNotEmpty) 'symptoms': symptoms,
+      'language': language,
+    };
+
+    final res = await _api.post(
+      ApiConstants.aiTreatmentEndpoint,
+      payload,
+      timeout: _aiTimeout,
+    );
+    final data = _extractMap(res['data']);
+    return DiseaseTreatmentResult.fromJson(data);
+  }
+
+  /// ── 4. Structured Care advice for a specific plant ─────────────
+  Future<PlantCareAdviceResult> getPlantCareAdvice(
+    String plantName, {
+    String? userQuery,
+    String language = 'en',
+  }) async {
+    final payload = {
+      'plantName': plantName,
+      if (userQuery != null && userQuery.trim().isNotEmpty)
+        'userQuery': userQuery.trim(),
+      'language': language,
+    };
+
+    final res = await _api.post(
+      ApiConstants.aiCareAdviceEndpoint,
+      payload,
+      timeout: _aiTimeout,
+    );
+    final data = _extractMap(res['data']);
+    return PlantCareAdviceResult.fromJson(data);
+  }
+
+  /// ── 5. Open-ended Q&A chat with plant assistant ────────────────
+  Future<AiChatResult> chatWithPlantAssistant(
     String userMessage,
-    List<Map<String, String>> history,
-  ) async {
-    final chat = _textModel.startChat(
-      history: history.map((msg) {
-        return Content(
-          msg['role'] == 'user' ? 'user' : 'model',
-          [TextPart(msg['text'] ?? '')],
-        );
-      }).toList(),
-      generationConfig: GenerationConfig(
-        temperature: 0.7,
-        maxOutputTokens: 512,
-      ),
-    );
+    List<Map<String, String>> history, {
+    String language = 'en',
+  }) async {
+    final payload = {
+      'message': userMessage,
+      'history': history,
+      'language': language,
+    };
 
-    final response = await chat.sendMessage(Content.text(userMessage));
-    return response.text ?? 'Sorry, I could not respond right now.';
+    final res = await _api.post(
+      ApiConstants.aiChatEndpoint,
+      payload,
+      timeout: _aiTimeout,
+    );
+    final data = _extractMap(res['data']);
+    return AiChatResult.fromJson(data);
   }
-}
 
-class PlantIdentificationResult {
-  final String commonName;
-  final String scientificName;
-  final String confidence;
-  final String briefDescription;
-  final String careDifficulty;
-  final String watering;
-  final String sunlight;
-  final bool isIndoor;
-  final bool isOutdoor;
-  final bool isPetSafe;
+  Map<String, dynamic> _extractMap(dynamic rawData) {
+    if (rawData is Map<String, dynamic>) {
+      return rawData;
+    }
+    if (rawData is List && rawData.isNotEmpty && rawData[0] is Map<String, dynamic>) {
+      return rawData[0] as Map<String, dynamic>;
+    }
+    return {};
+  }
 
-  PlantIdentificationResult({
-    required this.commonName,
-    required this.scientificName,
-    required this.confidence,
-    required this.briefDescription,
-    required this.careDifficulty,
-    required this.watering,
-    required this.sunlight,
-    required this.isIndoor,
-    required this.isOutdoor,
-    required this.isPetSafe,
-  });
-
-  factory PlantIdentificationResult.fromJson(Map<String, dynamic> json) {
-    return PlantIdentificationResult(
-      commonName: json['commonName'] ?? 'Unknown plant',
-      scientificName: json['scientificName'] ?? '',
-      confidence: json['confidence'] ?? 'low',
-      briefDescription: json['briefDescription'] ?? '',
-      careDifficulty: json['careDifficulty'] ?? 'MODERATE',
-      watering: json['watering'] ?? 'MEDIUM',
-      sunlight: json['sunlight'] ?? 'INDIRECT',
-      isIndoor: json['isIndoor'] ?? false,
-      isOutdoor: json['isOutdoor'] ?? true,
-      isPetSafe: json['isPetSafe'] ?? false,
-    );
+  String _resolveMimeType(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
   }
 }

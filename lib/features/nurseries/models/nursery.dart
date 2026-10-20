@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 class Nursery {
   final String id;
   final String name;
@@ -158,57 +160,18 @@ class Nursery {
 
   static double _computeHaversine(double lat1, double lon1, double lat2, double lon2) {
     const double earthRadiusKm = 6371.0;
-    final dLat = (lat2 - lat1) * (3.141592653589793 / 180.0);
-    final dLon = (lon2 - lon1) * (3.141592653589793 / 180.0);
+    final dLat = (lat2 - lat1) * (math.pi / 180.0);
+    final dLon = (lon2 - lon1) * (math.pi / 180.0);
 
-    final rLat1 = lat1 * (3.141592653589793 / 180.0);
-    final rLat2 = lat2 * (3.141592653589793 / 180.0);
+    final rLat1 = lat1 * (math.pi / 180.0);
+    final rLat2 = lat2 * (math.pi / 180.0);
 
-    // Using Taylor/series / sin approximation or Dart math:
-    final a = _sinSq(dLat / 2.0) +
-        _cos(rLat1) * _cos(rLat2) * _sinSq(dLon / 2.0);
-    final c = 2.0 * _asin(_sqrt(a));
+    final sinDLat = math.sin(dLat / 2.0);
+    final sinDLon = math.sin(dLon / 2.0);
+    final a = sinDLat * sinDLat +
+        math.cos(rLat1) * math.cos(rLat2) * sinDLon * sinDLon;
+    final c = 2.0 * math.asin(math.sqrt(a.clamp(0.0, 1.0)));
     return earthRadiusKm * c;
-  }
-
-  static double _sinSq(double x) {
-    final s = _sin(x);
-    return s * s;
-  }
-
-  static double _sin(double x) {
-    // Normalization to [-pi, pi]
-    const pi = 3.141592653589793;
-    while (x > pi) {
-      x -= 2 * pi;
-    }
-    while (x < -pi) {
-      x += 2 * pi;
-    }
-    // High-accuracy minimax polynomial approximation for sin(x)
-    return x - (x * x * x) / 6.0 + (x * x * x * x * x) / 120.0;
-  }
-
-  static double _cos(double x) {
-    const pi = 3.141592653589793;
-    return _sin((pi / 2.0) - x);
-  }
-
-  static double _sqrt(double val) {
-    if (val <= 0) return 0;
-    double x = val;
-    for (int i = 0; i < 10; i++) {
-      x = 0.5 * (x + val / x);
-    }
-    return x;
-  }
-
-  static double _asin(double val) {
-    if (val >= 1.0) return 3.141592653589793 / 2.0;
-    if (val <= -1.0) return -3.141592653589793 / 2.0;
-    // arcsin(x) series approximation
-    double x = val;
-    return x + (x * x * x) / 6.0 + (3.0 * x * x * x * x * x) / 40.0;
   }
 
   String? distanceDisplayFrom(double? userLat, double? userLng) {

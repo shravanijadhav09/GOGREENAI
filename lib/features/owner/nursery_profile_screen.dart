@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/india_locations.dart';
 import '../../providers/owner_provider.dart';
 import '../nurseries/models/nursery.dart';
 
@@ -26,11 +27,16 @@ class _NurseryProfileScreenState extends State<NurseryProfileScreen> {
   late TextEditingController _cityController;
   late TextEditingController _stateController;
   late TextEditingController _phoneController;
+  late TextEditingController _latController;
+  late TextEditingController _lngController;
 
   File? _selectedImageFile;
   String? _currentLogoUrl;
   bool _isUploadingLogo = false;
   bool _isSaving = false;
+
+  String? _selectedState;
+  String? _selectedCity;
 
   @override
   void initState() {
@@ -42,7 +48,23 @@ class _NurseryProfileScreenState extends State<NurseryProfileScreen> {
     _cityController = TextEditingController(text: nursery?.city ?? '');
     _stateController = TextEditingController(text: nursery?.state ?? '');
     _phoneController = TextEditingController(text: nursery?.phone ?? '');
+    _latController = TextEditingController(
+      text: nursery?.latitude != null ? nursery!.latitude!.toString() : '',
+    );
+    _lngController = TextEditingController(
+      text: nursery?.longitude != null ? nursery!.longitude!.toString() : '',
+    );
     _currentLogoUrl = nursery?.logoUrl ?? nursery?.imageUrl;
+
+    final initialSt = nursery?.state;
+    final initialCt = nursery?.city;
+    if (initialSt != null && IndiaLocations.states.contains(initialSt)) {
+      _selectedState = initialSt;
+      final cities = IndiaLocations.getCitiesForState(_selectedState);
+      if (initialCt != null && cities.contains(initialCt)) {
+        _selectedCity = initialCt;
+      }
+    }
   }
 
   @override
@@ -53,6 +75,8 @@ class _NurseryProfileScreenState extends State<NurseryProfileScreen> {
     _cityController.dispose();
     _stateController.dispose();
     _phoneController.dispose();
+    _latController.dispose();
+    _lngController.dispose();
     super.dispose();
   }
 
@@ -187,6 +211,11 @@ class _NurseryProfileScreenState extends State<NurseryProfileScreen> {
     final isNew = owner.nursery == null;
     bool success = false;
 
+    final latText = _latController.text.trim();
+    final lngText = _lngController.text.trim();
+    final double? lat = latText.isNotEmpty ? double.tryParse(latText) : null;
+    final double? lng = lngText.isNotEmpty ? double.tryParse(lngText) : null;
+
     if (isNew) {
       success = await owner.registerNursery(
         name: _nameController.text.trim(),
@@ -196,6 +225,8 @@ class _NurseryProfileScreenState extends State<NurseryProfileScreen> {
         state: _stateController.text.trim(),
         phone: _phoneController.text.trim(),
         logoUrl: _currentLogoUrl,
+        latitude: lat,
+        longitude: lng,
       );
     } else {
       success = await owner.updateNurseryProfile(
@@ -207,6 +238,8 @@ class _NurseryProfileScreenState extends State<NurseryProfileScreen> {
         state: _stateController.text.trim(),
         phone: _phoneController.text.trim(),
         logoUrl: _currentLogoUrl,
+        latitude: lat,
+        longitude: lng,
       );
     }
 
@@ -255,8 +288,16 @@ class _NurseryProfileScreenState extends State<NurseryProfileScreen> {
                   _cityController.text = selected.city ?? '';
                   _stateController.text = selected.state ?? '';
                   _phoneController.text = selected.phone ?? '';
+                  _latController.text = selected.latitude?.toString() ?? '';
+                  _lngController.text = selected.longitude?.toString() ?? '';
                   _currentLogoUrl = selected.logoUrl ?? selected.imageUrl;
                   _selectedImageFile = null;
+
+                  final st = selected.state;
+                  final ct = selected.city;
+                  _selectedState = (st != null && IndiaLocations.states.contains(st)) ? st : null;
+                  final cities = IndiaLocations.getCitiesForState(_selectedState);
+                  _selectedCity = (ct != null && cities.contains(ct)) ? ct : null;
                 });
               },
               itemBuilder: (ctx) => owner.myNurseries.map((n) {
@@ -495,28 +536,111 @@ class _NurseryProfileScreenState extends State<NurseryProfileScreen> {
               ),
               const SizedBox(height: 16),
 
+              // State Dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedState != null && IndiaLocations.states.contains(_selectedState) ? _selectedState : null,
+                decoration: const InputDecoration(
+                  labelText: 'State / Union Territory *',
+                  hintText: 'Select State or Union Territory',
+                  prefixIcon: Icon(Icons.map_outlined),
+                ),
+                items: IndiaLocations.states.map((st) {
+                  return DropdownMenuItem<String>(
+                    value: st,
+                    child: Text(st),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    _selectedState = val;
+                    _selectedCity = null;
+                    _stateController.text = val ?? '';
+                    _cityController.text = '';
+                  });
+                },
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return 'Please select a state';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // City Dropdown (populated based on selected state)
+              DropdownButtonFormField<String>(
+                value: (_selectedCity != null && IndiaLocations.getCitiesForState(_selectedState).contains(_selectedCity))
+                    ? _selectedCity
+                    : null,
+                decoration: InputDecoration(
+                  labelText: 'City / District *',
+                  hintText: _selectedState == null ? 'Select State first to see cities' : 'Select City',
+                  prefixIcon: const Icon(Icons.location_city_outlined),
+                ),
+                items: IndiaLocations.getCitiesForState(_selectedState).map((ct) {
+                  return DropdownMenuItem<String>(
+                    value: ct,
+                    child: Text(ct),
+                  );
+                }).toList(),
+                onChanged: _selectedState == null
+                    ? null
+                    : (val) {
+                        setState(() {
+                          _selectedCity = val;
+                          _cityController.text = val ?? '';
+                        });
+                      },
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return 'Please select a city';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 24),
+
+              // ── Section: GPS Coordinates ───────────────────────
+              _buildSectionHeader('GPS COORDINATES (FOR MAP & DISTANCE)'),
+              const SizedBox(height: 6),
+              const Text(
+                'Enter your nursery\'s GPS coordinates so customers can see it on the map and get accurate distance info. You can find these in Google Maps by long-pressing your location.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
-                    flex: 3,
                     child: TextFormField(
-                      controller: _cityController,
+                      controller: _latController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                       decoration: const InputDecoration(
-                        labelText: 'City',
-                        hintText: 'e.g. Austin',
-                        prefixIcon: Icon(Icons.location_city_outlined),
+                        labelText: 'Latitude',
+                        hintText: 'e.g. 18.5204',
+                        prefixIcon: Icon(Icons.my_location_outlined),
                       ),
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) return null;
+                        final v = double.tryParse(val.trim());
+                        if (v == null) return 'Invalid number';
+                        if (v < -90 || v > 90) return 'Must be -90 to 90';
+                        return null;
+                      },
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    flex: 2,
                     child: TextFormField(
-                      controller: _stateController,
+                      controller: _lngController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                       decoration: const InputDecoration(
-                        labelText: 'State / Province',
-                        hintText: 'e.g. TX',
+                        labelText: 'Longitude',
+                        hintText: 'e.g. 73.8567',
+                        prefixIcon: Icon(Icons.explore_outlined),
                       ),
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) return null;
+                        final v = double.tryParse(val.trim());
+                        if (v == null) return 'Invalid number';
+                        if (v < -180 || v > 180) return 'Must be -180 to 180';
+                        return null;
+                      },
                     ),
                   ),
                 ],

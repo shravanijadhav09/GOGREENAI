@@ -37,17 +37,13 @@ class ApiConstants {
     return 'http://localhost:5000/api';
   }
 
-  /// Gemini API Key configuration
-  /// Can be supplied at build/run time via:
-  /// flutter run --dart-define=GEMINI_API_KEY=your_key_here
-  /// Or replace the fallback value below with your Google AI Studio key.
-  static const String geminiApiKey = String.fromEnvironment(
-    'GEMINI_API_KEY',
-    defaultValue: '',
-  );
-
-  /// Gemini Model Name
-  static const String geminiModel = 'gemini-1.5-flash';
+  // ── AI Endpoints (All Gemini calls proxied through backend) ──
+  static const String aiStatusEndpoint = '/ai/status';
+  static const String aiIdentifyEndpoint = '/ai/identify';
+  static const String aiDiagnoseEndpoint = '/ai/diagnose';
+  static const String aiTreatmentEndpoint = '/ai/treatment';
+  static const String aiCareAdviceEndpoint = '/ai/care-advice';
+  static const String aiChatEndpoint = '/ai/chat';
 
   // ── Auth Endpoints ──────────────────────────────────────────
   static const String loginEndpoint = '/auth/login';

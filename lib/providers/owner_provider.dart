@@ -218,6 +218,8 @@ class OwnerProvider extends ChangeNotifier {
     String? state,
     String? phone,
     String? logoUrl,
+    double? latitude,
+    double? longitude,
   }) async {
     _state = OwnerLoadState.loading;
     _errorMessage = null;
@@ -234,6 +236,8 @@ class OwnerProvider extends ChangeNotifier {
         if (state != null && state.trim().isNotEmpty) 'state': state.trim(),
         if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
         if (logoUrl != null && logoUrl.trim().isNotEmpty) 'logoUrl': logoUrl.trim(),
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
       };
 
       final res = await _api.post(ApiConstants.nurseriesEndpoint, body);
@@ -270,6 +274,8 @@ class OwnerProvider extends ChangeNotifier {
     String? state,
     String? phone,
     String? logoUrl,
+    double? latitude,
+    double? longitude,
   }) async {
     _state = OwnerLoadState.loading;
     _errorMessage = null;
@@ -284,6 +290,8 @@ class OwnerProvider extends ChangeNotifier {
         if (state != null) 'state': state.trim(),
         if (phone != null) 'phone': phone.trim(),
         if (logoUrl != null) 'logoUrl': logoUrl.trim(),
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
       };
 
       final res = await _api.patch('${ApiConstants.nurseriesEndpoint}/$nurseryId', body);

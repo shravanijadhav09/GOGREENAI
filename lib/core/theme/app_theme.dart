@@ -75,13 +75,8 @@ class AppTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -89,13 +84,8 @@ class AppTheme {
           foregroundColor: AppColors.primaryBlue,
           side: const BorderSide(color: AppColors.primaryBlue, width: 1.5),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -128,18 +118,99 @@ class AppTheme {
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const TextStyle(
-              color: AppColors.primaryBlue,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            );
+            return const TextStyle(color: AppColors.primaryBlue, fontWeight: FontWeight.w600, fontSize: 12);
           }
-          return const TextStyle(
-            color: AppColors.textSecondary,
-            fontWeight: FontWeight.w500,
-            fontSize: 12,
-          );
+          return const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500, fontSize: 12);
         }),
+      ),
+    );
+  }
+
+  static ThemeData get darkTheme {
+    final baseTextTheme = GoogleFonts.poppinsTextTheme();
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      primaryColor: AppColors.botanicalGreenPrimary,
+      scaffoldBackgroundColor: AppColors.deepForestGreen,
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.botanicalGreenPrimary,
+        onPrimary: Colors.white,
+        secondary: AppColors.limeGreen,
+        onSecondary: Colors.white,
+        surface: AppColors.deepForestGreen,
+        onSurface: Colors.white70,
+        error: AppColors.error,
+        onError: Colors.white,
+      ),
+      textTheme: baseTextTheme.copyWith(
+        displayLarge: baseTextTheme.displayLarge?.copyWith(color: Colors.white70),
+        headlineMedium: baseTextTheme.headlineMedium?.copyWith(color: Colors.white70),
+        titleLarge: baseTextTheme.titleLarge?.copyWith(color: Colors.white70),
+        titleMedium: baseTextTheme.titleMedium?.copyWith(color: Colors.white70),
+        bodyLarge: baseTextTheme.bodyLarge?.copyWith(color: Colors.white70),
+        bodyMedium: baseTextTheme.bodyMedium?.copyWith(color: Colors.white60),
+        bodySmall: baseTextTheme.bodySmall?.copyWith(color: Colors.white60),
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.deepForestGreen,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        iconTheme: IconThemeData(color: Colors.white70),
+        titleTextStyle: TextStyle(color: Colors.white70, fontSize: 18, fontWeight: FontWeight.w700),
+      ),
+      cardTheme: CardThemeData(
+        color: AppColors.deepForestGreen.withOpacity(0.3),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.border, width: 1),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.botanicalGreenPrimary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.botanicalGreenPrimary,
+          side: const BorderSide(color: AppColors.botanicalGreenPrimary, width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.deepForestGreen.withOpacity(0.2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        hintStyle: const TextStyle(color: Colors.white60, fontSize: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.botanicalGreenPrimary, width: 2),
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.deepForestGreen,
+        elevation: 2,
+        indicatorColor: AppColors.botanicalGreenPrimary.withOpacity(0.2),
+        iconTheme: WidgetStateProperty.all(const IconThemeData(color: Colors.white70)),
+        labelTextStyle: WidgetStateProperty.all(const TextStyle(color: Colors.white70, fontSize: 12)),
       ),
     );
   }

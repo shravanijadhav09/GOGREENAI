@@ -59,10 +59,20 @@ class AuthProvider extends ChangeNotifier {
       }
     } catch (_) {
       // Access token might be expired; ApiClient tries refresh automatically.
-      // If still failing, check local cached user or clear session.
+      // If network is offline, check local cached user below.
     }
 
-    // If backend cannot verify session, wipe storage and log out
+    // If offline or network error occurred, restore the cached user session
+    final cachedUser = await _storage.getUser();
+    if (cachedUser != null) {
+      _currentUser = cachedUser;
+      _status = AuthStatus.authenticated;
+      _errorMessage = null;
+      notifyListeners();
+      return;
+    }
+
+    // If backend cannot verify session and no cached user, wipe storage and log out
     await _storage.clearAuth();
     _currentUser = null;
     _status = AuthStatus.unauthenticated;

@@ -41,15 +41,21 @@ class ApiClient {
     return false;
   }
 
-  Future<Map<String, dynamic>> get(String path, {String? token, bool isRetry = false}) async {
+  Future<Map<String, dynamic>> get(
+    String path, {
+    String? token,
+    bool isRetry = false,
+    Duration? timeout,
+  }) async {
     try {
       final headers = await _headers(token);
+      final effectiveTimeout = timeout ?? _timeout;
       http.Response response = await http
           .get(
             Uri.parse('$_baseUrl$path'),
             headers: headers,
           )
-          .timeout(_timeout);
+          .timeout(effectiveTimeout);
 
       if (response.statusCode == 401 && token == null) {
         final refreshed = await _tryRefreshToken();
@@ -60,7 +66,7 @@ class ApiClient {
                 Uri.parse('$_baseUrl$path'),
                 headers: retryHeaders,
               )
-              .timeout(_timeout);
+              .timeout(effectiveTimeout);
         }
       }
 
@@ -69,7 +75,7 @@ class ApiClient {
       if (!isRetry && !_hasProbed) {
         _hasProbed = true;
         final switched = await _probeCandidates();
-        if (switched) return get(path, token: token, isRetry: true);
+        if (switched) return get(path, token: token, isRetry: true, timeout: timeout);
       }
       throw ApiException(
         'Connection timed out. Ensure the backend server is running and USB port forwarding is enabled.',
@@ -79,7 +85,7 @@ class ApiClient {
       if (!isRetry && !_hasProbed) {
         _hasProbed = true;
         final switched = await _probeCandidates();
-        if (switched) return get(path, token: token, isRetry: true);
+        if (switched) return get(path, token: token, isRetry: true, timeout: timeout);
       }
       throw ApiException(
         'Unable to reach backend at $_baseUrl. Check network connection or USB cable.',
@@ -87,7 +93,7 @@ class ApiClient {
       );
     } on http.ClientException {
       if (!isRetry) {
-        return get(path, token: token, isRetry: true);
+        return get(path, token: token, isRetry: true, timeout: timeout);
       }
       throw ApiException(
         'Connection interrupted. Please verify backend server is reachable.',
@@ -101,16 +107,18 @@ class ApiClient {
     Map<String, dynamic> body, {
     String? token,
     bool isRetry = false,
+    Duration? timeout,
   }) async {
     try {
       final headers = await _headers(token);
+      final effectiveTimeout = timeout ?? _timeout;
       http.Response response = await http
           .post(
             Uri.parse('$_baseUrl$path'),
             headers: headers,
             body: jsonEncode(body),
           )
-          .timeout(_timeout);
+          .timeout(effectiveTimeout);
 
       if (response.statusCode == 401 &&
           token == null &&
@@ -125,7 +133,7 @@ class ApiClient {
                 headers: retryHeaders,
                 body: jsonEncode(body),
               )
-              .timeout(_timeout);
+              .timeout(effectiveTimeout);
         }
       }
 
@@ -134,7 +142,7 @@ class ApiClient {
       if (!isRetry && !_hasProbed) {
         _hasProbed = true;
         final switched = await _probeCandidates();
-        if (switched) return post(path, body, token: token, isRetry: true);
+        if (switched) return post(path, body, token: token, isRetry: true, timeout: timeout);
       }
       throw ApiException(
         'Connection timed out. Ensure the backend server is running and USB port forwarding is enabled.',

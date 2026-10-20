@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/app_provider.dart';
+import 'providers/theme_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'features/home/home_screen.dart';
 import 'features/plants/plants_screen.dart';
@@ -8,7 +9,6 @@ import 'features/nurseries/nurseries_screen.dart';
 import 'features/ai/ai_assistant_screen.dart';
 import 'features/auth/screens/auth_gate.dart';
 import 'providers/auth_provider.dart';
-
 import 'providers/cart_provider.dart';
 import 'providers/location_provider.dart';
 import 'providers/owner_provider.dart';
@@ -52,12 +52,23 @@ class GoGreenApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => LanguageProvider()..loadLanguage(),
         ),
+        // Theme provider for light/dark mode toggle
+        ChangeNotifierProvider(
+          create: (_) => ThemeProvider(),
+        ),
       ],
-      child: MaterialApp(
-        title: 'GoGreen-AI',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        home: const AuthGate(),
+      child: Builder(
+        builder: (context) {
+          final themeProvider = context.watch<ThemeProvider>();
+          return MaterialApp(
+            title: 'GoGreen-AI',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeProvider.themeMode,
+            home: const AuthGate(),
+          );
+        },
       ),
     );
   }

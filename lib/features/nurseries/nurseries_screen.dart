@@ -309,23 +309,57 @@ class _NurseriesScreenState extends State<NurseriesScreen> {
                 }
 
                 if (displayNurseries.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                  return RefreshIndicator(
+                    color: AppColors.botanicalGreen,
+                    onRefresh: () => prov.fetchNurseries(),
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        const Icon(Icons.storefront_outlined, size: 56, color: AppColors.textMuted),
-                        const SizedBox(height: 12),
-                        Text(
-                          _selectedCity != null ? 'No nurseries found in $_selectedCity.' : 'No nurseries found.',
-                          style: const TextStyle(color: AppColors.textSecondary),
-                        ),
-                        if (_selectedCity != null) ...[
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: () => setState(() => _selectedCity = null),
-                            child: const Text('Show All Cities', style: TextStyle(color: AppColors.botanicalGreen)),
+                        SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+                        Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.storefront_outlined, size: 56, color: AppColors.textMuted),
+                              const SizedBox(height: 12),
+                              Text(
+                                _selectedCity != null
+                                    ? 'No nurseries found in $_selectedCity.'
+                                    : 'No registered nurseries found yet.',
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Pull down to refresh or check back soon',
+                                style: TextStyle(
+                                  color: AppColors.textMuted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: prov.fetchNurseries,
+                                icon: const Icon(Icons.refresh, size: 16),
+                                label: const Text('Refresh'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.botanicalGreen,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                ),
+                              ),
+                              if (_selectedCity != null) ...[
+                                const SizedBox(height: 10),
+                                TextButton(
+                                  onPressed: () => setState(() => _selectedCity = null),
+                                  child: const Text('Show All Cities', style: TextStyle(color: AppColors.botanicalGreen)),
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   );
